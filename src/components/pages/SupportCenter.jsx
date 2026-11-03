@@ -33,7 +33,7 @@ export default function SupportCenter({ school, user, lang = 'en' }) {
         const { data } = await supabase
           .from('support_tickets')
           .select('*')
-          .eq('school_id', school.id)
+          .eq('school_id', school?.id)
           .order('created_at', { ascending: false })
           .limit(30)
         setTickets(data || [])
@@ -63,13 +63,24 @@ export default function SupportCenter({ school, user, lang = 'en' }) {
   const tel = cfg.phone ? `tel:${String(cfg.phone).replace(/\s/g, '')}` : null
   const mail = cfg.email ? `mailto:${cfg.email}?subject=${encodeURIComponent('ShuleMoja support — ' + (school?.school_name || ''))}` : null
 
+  const deleteTicket = async (id) => {
+    if (!confirm('Delete this support ticket?')) return
+    setErr('')
+    const { error } = await supabase.from('support_tickets').delete().eq('id', id)
+    if (error) setErr(error.message + ' — delete may be blocked by RLS.')
+    else {
+      setTickets((prev) => prev.filter((x) => x.id !== id))
+      setMsg('Ticket deleted.')
+    }
+  }
+
   const sendTicket = async (e) => {
     e.preventDefault()
     setBusy(true)
     setErr('')
     setMsg('')
     const { error } = await supabase.from('support_tickets').insert({
-      school_id: school.id,
+      school_id: school?.id,
       user_id: user.id,
       subject: subject.trim(),
       body: body.trim(),
@@ -155,6 +166,7 @@ export default function SupportCenter({ school, user, lang = 'en' }) {
               <li key={tk.id} className="rounded-xl border border-slate-200 p-3 text-sm">
                 <div className="flex justify-between gap-2">
                   <p className="font-bold text-slate-900">{tk.subject}</p>
+                  <button type="button" className="text-red-600 text-[10px] font-black shrink-0" onClick={() => deleteTicket(tk.id)}>Delete</button>
                   <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${tk.status === 'replied' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900'}`}>
                     {tk.status === 'replied' ? t(lang, 'replied') : t(lang, 'open')}
                   </span>

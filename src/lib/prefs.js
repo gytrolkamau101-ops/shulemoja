@@ -1,19 +1,21 @@
 const THEME_KEY = 'sm_theme'
 const LANG_KEY = 'sm_lang'
 
+/** Fixed standard theme — dark/light switcher removed */
 export function getTheme() {
-  try {
-    const v = localStorage.getItem(THEME_KEY)
-    if (v === 'dark' || v === 'dim' || v === 'light') return v
-  } catch (_) {}
-  return 'light'
+  return 'standard'
 }
 
-export function setTheme(theme) {
-  try {
-    localStorage.setItem(THEME_KEY, theme)
-  } catch (_) {}
-  applyTheme(theme)
+export function setTheme(_theme) {
+  applyTheme('standard')
+}
+
+export function applyTheme(_theme) {
+  if (typeof document === 'undefined') return
+  const root = document.documentElement
+  root.setAttribute('data-theme', 'standard')
+  root.classList.remove('theme-light', 'theme-dark', 'theme-dim')
+  root.classList.add('theme-standard')
 }
 
 export function getLang() {
@@ -28,11 +30,4 @@ export function setLang(lang) {
   try {
     localStorage.setItem(LANG_KEY, lang)
   } catch (_) {}
-}
-
-export function applyTheme(theme) {
-  const root = document.documentElement
-  root.setAttribute('data-theme', theme || 'light')
-  root.classList.remove('theme-light', 'theme-dark', 'theme-dim')
-  root.classList.add(`theme-${theme || 'light'}`)
 }

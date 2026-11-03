@@ -19,11 +19,11 @@ export default function Games({ school, term, user }) {
 
   const load = useCallback(async () => {
     const [e, a, p, x, s] = await Promise.all([
-      supabase.from('games_events').select('*').eq('school_id', school.id).order('event_date', { ascending: true }),
-      supabase.from('games_assets').select('*').eq('school_id', school.id).order('item_name'),
-      supabase.from('games_players').select('*, students(first_name, last_name, admission_no)').eq('school_id', school.id).eq('active', true),
-      supabase.from('games_expenses').select('*').eq('school_id', school.id).order('expense_date', { ascending: false }),
-      supabase.from('students').select('id, first_name, last_name, admission_no').eq('school_id', school.id).eq('status', 'Active').order('first_name').limit(500),
+      supabase.from('games_events').select('*').eq('school_id', school?.id).order('event_date', { ascending: true }),
+      supabase.from('games_assets').select('*').eq('school_id', school?.id).order('item_name'),
+      supabase.from('games_players').select('*, students(first_name, last_name, admission_no)').eq('school_id', school?.id).eq('active', true),
+      supabase.from('games_expenses').select('*').eq('school_id', school?.id).order('expense_date', { ascending: false }),
+      supabase.from('students').select('id, first_name, last_name, admission_no').eq('school_id', school?.id).eq('status', 'Active').order('first_name').limit(500),
     ])
     if (e.error || a.error) {
       setError((e.error || a.error)?.message + ' — Run 25_v47_subject_games.sql in Supabase if tables are missing.')
@@ -33,7 +33,7 @@ export default function Games({ school, term, user }) {
     setPlayers(p.data || [])
     setExpenses(x.data || [])
     setStudents(s.data || [])
-  }, [school.id])
+  }, [school?.id])
 
   useEffect(() => {
     load()
@@ -42,7 +42,7 @@ export default function Games({ school, term, user }) {
   const addEvent = async (ev) => {
     ev.preventDefault()
     setError('')
-    const { error } = await supabase.from('games_events').insert([{ ...form, school_id: school.id }])
+    const { error } = await supabase.from('games_events').insert([{ ...form, school_id: school?.id }])
     if (error) return setError(error.message)
     setForm({ title: '', event_date: '', opponent: '', venue: '', sport: 'Football' })
     load()
@@ -50,7 +50,7 @@ export default function Games({ school, term, user }) {
 
   const addAsset = async (ev) => {
     ev.preventDefault()
-    const { error } = await supabase.from('games_assets').insert([{ ...assetForm, school_id: school.id, quantity: Number(assetForm.quantity) || 1 }])
+    const { error } = await supabase.from('games_assets').insert([{ ...assetForm, school_id: school?.id, quantity: Number(assetForm.quantity) || 1 }])
     if (error) return setError(error.message)
     setAssetForm({ item_name: '', quantity: 1, condition: 'Good' })
     load()
@@ -58,7 +58,7 @@ export default function Games({ school, term, user }) {
 
   const addPlayer = async (ev) => {
     ev.preventDefault()
-    const { error } = await supabase.from('games_players').insert([{ ...playerForm, school_id: school.id, active: true }])
+    const { error } = await supabase.from('games_players').insert([{ ...playerForm, school_id: school?.id, active: true }])
     if (error) return setError(error.message)
     setPlayerForm({ student_id: '', sport: 'Football' })
     load()
@@ -68,7 +68,7 @@ export default function Games({ school, term, user }) {
     ev.preventDefault()
     const { error } = await supabase.from('games_expenses').insert([
       {
-        school_id: school.id,
+        school_id: school?.id,
         term_id: term?.id || null,
         description: expForm.description,
         amount: Number(expForm.amount) || 0,
@@ -110,7 +110,7 @@ export default function Games({ school, term, user }) {
 
   return (
     <div className="space-y-4">
-      <PageTitle>Games</PageTitle>
+      <PageTitle title="Games" subtitle="Fixtures, squad, kit & match expenses" />
       <Alert>{error}</Alert>
       <div className="flex flex-wrap gap-2">
         {tabs.map(([id, label]) => (

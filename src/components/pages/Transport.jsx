@@ -13,12 +13,12 @@ export default function Transport({ school, user }) {
 
   const load = useCallback(async () => {
     const [{ data: v }, { data: t }] = await Promise.all([
-      supabase.from('fleet_vehicles').select('*').eq('school_id', school.id).order('plate'),
-      supabase.from('transport_trips').select('*, fleet_vehicles(plate, vehicle_name)').eq('school_id', school.id).order('trip_date', { ascending: false }).limit(50),
+      supabase.from('fleet_vehicles').select('*').eq('school_id', school?.id).order('plate'),
+      supabase.from('transport_trips').select('*, fleet_vehicles(plate, vehicle_name)').eq('school_id', school?.id).order('trip_date', { ascending: false }).limit(50),
     ])
     setVehicles(v || [])
     setTrips(t || [])
-  }, [school.id])
+  }, [school?.id])
 
   useEffect(() => { load() }, [load])
 
@@ -26,7 +26,7 @@ export default function Transport({ school, user }) {
     e.preventDefault()
     if (!canEdit) return
     setError('')
-    const { error: err } = await supabase.from('fleet_vehicles').insert([{ school_id: school.id, ...vForm, capacity: Number(vForm.capacity) || 0 }])
+    const { error: err } = await supabase.from('fleet_vehicles').insert([{ school_id: school?.id, ...vForm, capacity: Number(vForm.capacity) || 0 }])
     if (err) return setError(err.message + ' — run 23_v38_modules.sql')
     setVForm({ plate: '', vehicle_name: '', capacity: 30, driver_name: '', driver_phone: '' })
     load()
@@ -37,7 +37,7 @@ export default function Transport({ school, user }) {
     if (!canEdit) return
     setError('')
     const { error: err } = await supabase.from('transport_trips').insert([{
-      school_id: school.id,
+      school_id: school?.id,
       vehicle_id: tForm.vehicle_id || null,
       trip_date: tForm.trip_date,
       destination: tForm.destination,

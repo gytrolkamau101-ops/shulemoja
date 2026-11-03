@@ -6,11 +6,9 @@ import { suspensionLetterText, transferLetterText, waCompose, printBrandedLetter
 import { planEntitlements } from '../../lib/plans'
 
 import { canEditData } from '../../lib/roles'
+import { nullIfEmpty, studentsToNemisCsv, downloadText } from '../../lib/studentsCsv'
 import { assertStudentCap } from '../../lib/caps'
 
-function nullIfEmpty(v) {
-  return v === '' || v == null ? null : v
-}
 
 const blank = {
   first_name: '',
@@ -27,7 +25,8 @@ const blank = {
 }
 
 export default function Students({ school, user, term }) {
-  const canEdit = canEditData(user.role)
+  const ent = planEntitlements(school || {})
+  const canEdit = canEditData(user?.role) && !ent.readOnly && ent.planId !== 'free'
   const [students, setStudents] = useState([])
   const [enrollMap, setEnrollMap] = useState({}) // student_id -> { enrollment_id, grade_id, grade_name }
   const [grades, setGrades] = useState([])
@@ -39,6 +38,7 @@ export default function Students({ school, user, term }) {
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const [selected, setSelected] = useState(null)
+  const [selectedIds, setSelectedIds] = useState(() => new Set())
   const [movingId, setMovingId] = useState(null)
 
   const fetchAll = useCallback(async () => {
@@ -47,10 +47,10 @@ export default function Students({ school, user, term }) {
       supabase
         .from('students')
         .select('*')
-        .eq('school_id', school.id)
+        .eq('school_id', school?.id)
         
         .order('first_name'),
-      supabase.from('grades').select('*').eq('school_id', school.id).order('grade_name'),
+      supabase.from('grades').select('*').eq('school_id', school?.id).order('grade_name'),
     ])
     setStudents(s || [])
     setGrades(g || [])
@@ -59,7 +59,7 @@ export default function Students({ school, user, term }) {
       const { data: enr } = await supabase
         .from('student_enrollments')
         .select('id, student_id, grade_id, grades(grade_name)')
-        .eq('school_id', school.id)
+        .eq('school_id', school?.id)
         .eq('term_id', term.id)
       const map = {}
       ;(enr || []).forEach((e) => {
@@ -70,13 +70,22 @@ export default function Students({ school, user, term }) {
       setEnrollMap({})
     }
     setLoading(false)
-  }, [school.id, term])
+  }, [school?.id, term])
 
   useEffect(() => {
     fetchAll()
   }, [fetchAll])
 
+  const byGradeLabel = (s) => enrollMap[s.id]?.grade_name || 'Unassigned'
+
   const filtered = students.filter((s) => {
+    if ((s.status || 'Active') === 'Inactive' || (s.status || '') === 'Transferred') return false
+
+    if ((s.status || 'Active') !== 'Active' && (s.status || '') !== 'Suspended') {
+      // still show Suspended; hide Inactive/Transferred from main list unless searching
+      if (!search) return false
+    }
+
     const q = search.toLowerCase()
     const matchesSearch =
       s.first_name.toLowerCase().includes(q) ||
@@ -97,7 +106,7 @@ export default function Students({ school, user, term }) {
     const { grade_id, ...studentFields } = form
     const payload = {
       ...studentFields,
-      school_id: school.id,
+      school_id: school?.id,
       date_of_birth: nullIfEmpty(studentFields.date_of_birth),
       parent_name: nullIfEmpty(studentFields.parent_name),
       parent_phone: nullIfEmpty(studentFields.parent_phone),
@@ -123,7 +132,7 @@ export default function Students({ school, user, term }) {
     if (grade_id && term) {
       const { error: enrollErr } = await supabase
         .from('student_enrollments')
-        .insert([{ school_id: school.id, student_id: created.id, term_id: term.id, grade_id }])
+        .insert([{ school_id: school?.id, student_id: created.id, term_id: term.id, grade_id }])
       if (enrollErr) {
         setSaving(false)
         setError(`Student saved, but could not assign grade: ${enrollErr.message}`)
@@ -142,27 +151,8 @@ export default function Students({ school, user, term }) {
 
 
   const exportNemis = () => {
-    const header = ['admission_no', 'first_name', 'last_name', 'gender', 'date_of_birth', 'date_admitted', 'parent_name', 'parent_phone', 'parent_email', 'status', 'nemis_ready']
-    const lines = [header.join(',')]
-    students.forEach((s) => {
-      const row = { ...s, nemis_ready: 'Y' }
-      lines.push(
-        header
-          .map((h) => {
-            const v = row[h] ?? ''
-            const str = String(v).replace(/"/g, '""')
-            return str.includes(',') ? `"${str}"` : str
-          })
-          .join(',')
-      )
-    })
-    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `shulekit_students_${school.school_code || 'export'}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
+    const csv = studentsToNemisCsv(filtered, byGradeLabel)
+    downloadText(`shulemoja_students_${school.school_code || 'export'}.csv`, csv)
   }
 
   const importCsv = async (file) => {
@@ -187,7 +177,7 @@ export default function Students({ school, user, term }) {
       const genderRaw = idx('gender') >= 0 ? cols[idx('gender')] : 'Male'
       const gender = /f/i.test(genderRaw) ? 'Female' : 'Male'
       rows.push({
-        school_id: school.id,
+        school_id: school?.id,
         admission_no,
         first_name,
         last_name,
@@ -208,10 +198,80 @@ export default function Students({ school, user, term }) {
     fetchAll()
   }
 
+  const revokeParentAccess = async (studentId) => {
+    const { error: e1 } = await supabase.from('parent_children').delete().eq('student_id', studentId)
+    const { error: e2 } = await supabase.from('students').update({ status: 'Inactive' }).eq('id', studentId)
+    if (e2) {
+      // last resort: hard delete if soft-delete blocked
+      const { error: e3 } = await supabase.from('students').delete().eq('id', studentId)
+      if (e3) throw new Error(e2.message + (e1 ? ' / ' + e1.message : '') + ' / ' + e3.message)
+    }
+    return e1
+  }
+
   const removeStudent = async (s) => {
-    if (!confirm(`Remove ${s.first_name} ${s.last_name} from the active list?`)) return
-    await supabase.from('students').update({ status: 'Inactive' }).eq('id', s.id)
-    fetchAll()
+    if (!canEdit) return
+    if (!confirm(`Remove ${s.first_name} ${s.last_name}? Parent portal access will be removed.`)) return
+    setError('')
+    try {
+      await revokeParentAccess(s.id)
+      setSelectedIds((prev) => {
+        const n = new Set(prev)
+        n.delete(s.id)
+        return n
+      })
+      fetchAll()
+    } catch (e) {
+      setError(String(e.message || e) + ' — run SQL 30_v63_policies.sql in Supabase if delete is blocked by RLS.')
+    }
+  }
+
+  const toggleSelect = (id) => {
+    if (!canEdit) return
+    setSelectedIds((prev) => {
+      const n = new Set(prev)
+      if (n.has(id)) n.delete(id)
+      else n.add(id)
+      return n
+    })
+  }
+
+  const toggleSelectAllFiltered = () => {
+    if (!canEdit) return
+    setSelectedIds((prev) => {
+      const ids = filtered.map((s) => s.id)
+      const allOn = ids.length && ids.every((id) => prev.has(id))
+      if (allOn) return new Set()
+      return new Set(ids)
+    })
+  }
+
+  const bulkRemove = async () => {
+    if (!canEdit || selectedIds.size === 0) return
+    const n = selectedIds.size
+    if (!confirm(`Remove ${n} learner(s) from the active list and revoke parent access?`)) return
+    setError('')
+    setSaving(true)
+    const failed = []
+    for (const id of selectedIds) {
+      try {
+        await revokeParentAccess(id)
+      } catch (e) {
+        failed.push(String(e?.message || e))
+      }
+    }
+    setSaving(false)
+    setSelectedIds(new Set())
+    await fetchAll()
+    if (failed.length) {
+      setError(
+        `Removed some learners, but ${failed.length} failed. ${failed[0]}${
+          failed.length > 1 ? ' …' : ''
+        } — run migrations/030_v63_policies.sql in Supabase if RLS blocks delete.`
+      )
+    } else {
+      toast?.(`${n} learner(s) removed`, 'ok')
+    }
   }
 
   const setGrade = async (studentId, gradeId) => {
@@ -228,7 +288,7 @@ export default function Students({ school, user, term }) {
     } else {
       const { error } = await supabase
         .from('student_enrollments')
-        .insert([{ school_id: school.id, student_id: studentId, term_id: term.id, grade_id: gradeId }])
+        .insert([{ school_id: school?.id, student_id: studentId, term_id: term.id, grade_id: gradeId }])
       err = error
     }
     setMovingId(null)
@@ -238,6 +298,11 @@ export default function Students({ school, user, term }) {
 
   return (
     <div className="space-y-6">
+      {(ent.planId === 'free' || ent.readOnly) && (
+        <p className="text-sm font-semibold text-amber-900 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mb-2">
+          Free plan: view student list only. Upgrade to add, edit, or remove learners.
+        </p>
+      )}
       <PageTitle
         right={
           canEdit && (
@@ -399,10 +464,32 @@ export default function Students({ school, user, term }) {
         ) : filtered.length === 0 ? (
           <p className="p-6 text-gray-600 text-center">No students found</p>
         ) : (
+          <>
+          {canEdit && selectedIds.size > 0 && (
+            <div className="flex flex-wrap items-center gap-2 mb-2 p-2 rounded-xl bg-red-50 border border-red-100">
+              <span className="text-sm font-bold text-red-800">{selectedIds.size} selected</span>
+              <button type="button" className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-black" onClick={bulkRemove}>
+                Delete selected
+              </button>
+              <button type="button" className="px-3 py-1.5 rounded-lg bg-white border text-xs font-bold" onClick={() => setSelectedIds(new Set())}>
+                Clear
+              </button>
+            </div>
+          )}
           <Scroll>
             <table className="w-full">
               <thead className="bg-gray-100 border-b">
                 <tr>
+                  {canEdit && (
+                    <th className={th}>
+                      <input
+                        type="checkbox"
+                        aria-label="Select all"
+                        onChange={toggleSelectAllFiltered}
+                        checked={filtered.length > 0 && filtered.every((s) => selectedIds.has(s.id))}
+                      />
+                    </th>
+                  )}
                   <th className={th}>Adm No</th>
                   <th className={th}>Name</th>
                   <th className={th}>Gender</th>
@@ -414,6 +501,11 @@ export default function Students({ school, user, term }) {
               <tbody>
                 {filtered.map((s) => (
                   <tr key={s.id} className="border-b hover:bg-gray-50">
+                    {canEdit && (
+                      <td className={td}>
+                        <input type="checkbox" checked={selectedIds.has(s.id)} onChange={() => toggleSelect(s.id)} />
+                      </td>
+                    )}
                     <td className={td}>{s.admission_no}</td>
                     <td className={td}>
                       {s.first_name} {s.last_name}
@@ -454,6 +546,7 @@ export default function Students({ school, user, term }) {
               </tbody>
             </table>
           </Scroll>
+          </>
         )}
       </Card>
 
@@ -474,22 +567,24 @@ export default function Students({ school, user, term }) {
                 <button type="button" className="text-xs font-bold px-2 py-1 rounded-lg bg-amber-100 text-amber-900 border border-amber-200"
                   onClick={async () => {
                     await supabase.from('students').update({ status: 'Suspended' }).eq('id', selected.id)
+                    await supabase.from('parent_children').update({ status: 'revoked' }).eq('student_id', selected.id)
                     const text = suspensionLetterText({ schoolName: school.school_name, studentName: selected.first_name + ' ' + selected.last_name, admissionNo: selected.admission_no })
                     const wa = waCompose(selected.parent_phone, text)
                     if (wa) window.open(wa, '_blank')
-                    printBrandedLetter({ school, title: 'Suspension notice', bodyHtml: text.replace(/\n/g, '<br/>'), watermark: planEntitlements(school).reportWatermark })
+                    printBrandedLetter({ school, title: 'Suspension notice', bodyHtml: text.replace(/\n/g, '<br/>'), watermark: planEntitlements(school || {}).reportWatermark })
                     setSelected(null)
-                    load()
+                    fetchAll()
                   }}>Suspend + letter</button>
                 <button type="button" className="text-xs font-bold px-2 py-1 rounded-lg bg-slate-200 text-slate-900 border border-slate-300"
                   onClick={async () => {
                     await supabase.from('students').update({ status: 'Transferred' }).eq('id', selected.id)
+                    await supabase.from('parent_children').update({ status: 'revoked' }).eq('student_id', selected.id)
                     const text = transferLetterText({ schoolName: school.school_name, studentName: selected.first_name + ' ' + selected.last_name, admissionNo: selected.admission_no })
                     const wa = waCompose(selected.parent_phone, text)
                     if (wa) window.open(wa, '_blank')
-                    printBrandedLetter({ school, title: 'Transfer letter', bodyHtml: text.replace(/\n/g, '<br/>'), watermark: planEntitlements(school).reportWatermark })
+                    printBrandedLetter({ school, title: 'Transfer letter', bodyHtml: text.replace(/\n/g, '<br/>'), watermark: planEntitlements(school || {}).reportWatermark })
                     setSelected(null)
-                    load()
+                    fetchAll()
                   }}>Transfer + letter</button>
               </div>
             )}

@@ -7,7 +7,8 @@
 
 import crypto from 'crypto'
 
-const PLAN_DAYS = { basic: 120, premium: 120, pro: 120, trial: 90 }
+// One paid cycle = one Kenyan school term (~90 days / 13 weeks), not a calendar month count.
+const PLAN_DAYS = { basic: 90, premium: 90, pro: 90, trial: 90 }
 const PLAN_CAPS = { basic: 200, premium: 500, pro: 1000, trial: 250 }
 const PLAN_PRICES = { basic: 2000, premium: 3500, pro: 5000 }
 const PLAN_STAFF = { basic: 25, premium: 50, pro: 80, trial: 30 }
@@ -202,7 +203,7 @@ export async function handler(event) {
     if (amount != null && Number(amount) + 0.01 < expected) {
       return { statusCode: 200, body: JSON.stringify({ ok: true, skipped: 'amount_mismatch', expected, amount }) }
     }
-    const days = PLAN_DAYS[planId] || 120
+    const days = PLAN_DAYS[planId] || 90
     const exp = new Date()
     exp.setDate(exp.getDate() + days)
     await sbFetch(url, key, `schools?id=eq.${schoolId}`, {
@@ -231,14 +232,32 @@ export async function handler(event) {
     }
   }
 
-  // --- Fee payment: record only if amount looks sane; school confirms offline/M-Pesa till ---
-  if (refKind === 'fee' && schoolId && studentId && amount != null && amount > 0) {
-    // Optional: refuse absurd amounts
+  // --- Fee payment auto-post on successful STK (api_ref fee-{schoolId}-{studentId}-{ts}) ---
+  const paidOk = /COMPLETE|COMPLETED|PAID|SUCCESS|APPLIED/i.test(state || '')
+  if (refKind === 'fee' && paidOk && schoolId && studentId && amount != null && amount > 0) {
     if (amount > 500000) {
       return { statusCode: 200, body: JSON.stringify({ ok: true, skipped: 'fee_amount_too_high' }) }
     }
     try {
-      // Find current term
+      const receipt = invKey || apiRef
+      // Idempotent: skip if receipt already posted
+      if (receipt) {
+        const rq = new URLSearchParams({
+          select: 'id',
+          school_id: `eq.${schoolId}`,
+          receipt_no: `eq.${receipt}`,
+          limit: '1',
+        })
+        const rr = await fetch(`${url}/rest/v1/fee_payments?${rq}`, {
+          headers: { apikey: key, Authorization: `Bearer ${key}` },
+        })
+        if (rr.ok) {
+          const existing = await rr.json()
+          if (Array.isArray(existing) && existing.length) {
+            return { statusCode: 200, body: JSON.stringify({ ok: true, fee: 'already_posted', receipt }) }
+          }
+        }
+      }
       const tq = new URLSearchParams({
         select: 'id',
         school_id: `eq.${schoolId}`,
@@ -262,7 +281,7 @@ export async function handler(event) {
           amount_paid: amount,
           payment_method: 'M-Pesa STK',
           payment_date: new Date().toISOString().slice(0, 10),
-          receipt_no: invKey || apiRef,
+          receipt_no: receipt,
           notes: 'Auto from IntaSend webhook',
         }),
       })

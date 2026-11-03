@@ -39,7 +39,7 @@ export default function ImportCenter({ school, term, user }) {
       const { error } = await supabase.from('students').upsert(
         [
           {
-            school_id: school.id,
+            school_id: school?.id,
             admission_no: r.admission_no,
             first_name: r.first_name,
             last_name: r.last_name || '',
@@ -67,7 +67,7 @@ export default function ImportCenter({ school, term, user }) {
     const { data: students } = await supabase
       .from('students')
       .select('id, admission_no')
-      .eq('school_id', school.id)
+      .eq('school_id', school?.id)
     const byAdm = Object.fromEntries((students || []).map((s) => [s.admission_no, s.id]))
     let ok = 0
     let fail = 0
@@ -79,7 +79,7 @@ export default function ImportCenter({ school, term, user }) {
       }
       const { error } = await supabase.from('fee_payments').insert([
         {
-          school_id: school.id,
+          school_id: school?.id,
           term_id: term.id,
           student_id: sid,
           amount_paid: Number(r.amount_paid),
@@ -102,7 +102,7 @@ export default function ImportCenter({ school, term, user }) {
       if (!r.full_name) continue
       const { error } = await supabase.from('admissions').insert([
         {
-          school_id: school.id,
+          school_id: school?.id,
           full_name: r.full_name,
           gender: r.gender || null,
           date_of_birth: r.date_of_birth || null,
@@ -119,9 +119,68 @@ export default function ImportCenter({ school, term, user }) {
     toast(`Imported ${ok} applications`, 'ok')
   }
 
+
+  const exportBackup = async () => {
+    setError('')
+    setInfo('')
+    setBusy(true)
+    try {
+      const sid = school?.id
+      if (!sid) throw new Error('No school')
+      const tables = [
+        ['students', 'id, admission_no, first_name, last_name, gender, date_of_birth, date_admitted, parent_name, parent_phone, parent_email, status'],
+        ['student_enrollments', 'student_id, grade_id, term_id'],
+        ['grades', 'id, grade_name'],
+        ['subjects', 'id, subject_name'],
+        ['fee_payments', 'student_id, term_id, amount_paid, payment_method, payment_date, receipt_no, notes'],
+        ['fee_structures', 'grade_id, term_id, total_fee'],
+        ['fee_opening_balances', 'student_id, term_id, amount'],
+        ['attendance', 'student_id, date, status'],
+        ['exams', 'id, name, term_id'],
+        ['exam_results', 'exam_id, student_id, subject_id, marks'],
+        ['school_events', 'event_name, event_date, description'],
+        ['staff', 'id, full_name, role, email, status'],
+      ]
+      const out = { exported_at: new Date().toISOString(), school_id: sid, school_name: school?.school_name, school_code: school?.school_code, tables: {} }
+      for (const [table, cols] of tables) {
+        try {
+          const { data, error } = await supabase.from(table).select(cols).eq('school_id', sid).limit(5000)
+          if (!error) out.tables[table] = data || []
+          else out.tables[table] = { error: error.message }
+        } catch (e) {
+          out.tables[table] = { error: String(e.message || e) }
+        }
+      }
+      // users may not have school_id filter same way
+      try {
+        const { data } = await supabase.from('users').select('id, full_name, email, role, status').eq('school_id', sid)
+        out.tables.users = data || []
+      } catch (_) {}
+      const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' })
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = `shulemoja_backup_${school?.school_code || 'school'}_${new Date().toISOString().slice(0, 10)}.json`
+      a.click()
+      URL.revokeObjectURL(a.href)
+      setInfo('Full JSON backup downloaded. Keep it offline for re-import after upgrades.')
+      toast('Backup downloaded', 'ok')
+      await logAudit('export.backup', 'schools', sid, { tables: Object.keys(out.tables) })
+    } catch (e) {
+      setError(e.message || String(e))
+    }
+    setBusy(false)
+  }
+
   return (
     <div className="space-y-6">
-      <PageTitle>Import centre</PageTitle>
+      <PageTitle title="Import centre" subtitle="Templates, CSV upload, and full school backup export" />
+      <Card title="Full school backup (export)">
+        <p className="text-sm text-slate-700 mb-3">Download students, fees, exams, attendance, staff and more as one JSON file for safekeeping or future re-import.</p>
+        <button type="button" className={btnGreen} disabled={busy} onClick={exportBackup}>
+          {busy ? 'Exporting…' : 'Download full backup (JSON)'}
+        </button>
+      </Card>
+
       <Card title="How to move from Excel / Word">
         <ol className="text-sm text-slate-600 list-decimal pl-5 space-y-2">
           <li>Download a template below (opens in Excel, Google Sheets, or LibreOffice).</li>

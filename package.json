@@ -1,12 +1,13 @@
 {
   "name": "shulemoja",
   "private": true,
-  "version": "52.0.0",
+  "version": "98.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --test tests/**/*.test.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.49.1",
@@ -21,5 +22,6 @@
   },
   "engines": {
     "node": ">=18"
-  }
+  },
+  "description": "ShuleMoja lean \u2014 sniper build"
 }

@@ -20,14 +20,14 @@ export function downloadCsv(filename, rows) {
 }
 
 export function studentTemplate() {
-  downloadCsv('shulekit_students_template.csv', [
+  downloadCsv('shulemoja_students_template.csv', [
     ['admission_no', 'first_name', 'last_name', 'gender', 'date_of_birth', 'date_admitted', 'parent_name', 'parent_phone', 'parent_email', 'status'],
     ['ADM001', 'Jane', 'Wanjiku', 'F', '2015-03-12', '2024-01-15', 'Mary Wanjiku', '0712345678', 'mary@email.com', 'Active'],
   ])
 }
 
 export function marksTemplate() {
-  downloadCsv('shulekit_marks_template.csv', [
+  downloadCsv('shulemoja_marks_template.csv', [
     ['admission_no', 'subject_name', 'marks'],
     ['ADM001', 'Mathematics', '78'],
     ['ADM001', 'English', '82'],
@@ -35,14 +35,14 @@ export function marksTemplate() {
 }
 
 export function feesTemplate() {
-  downloadCsv('shulekit_fee_payments_template.csv', [
+  downloadCsv('shulemoja_fee_payments_template.csv', [
     ['admission_no', 'amount_paid', 'payment_method', 'receipt_no', 'payment_date', 'notes'],
     ['ADM001', '5000', 'M-Pesa', 'RCPT001', '2024-02-01', 'Term fees'],
   ])
 }
 
 export function admissionsTemplate() {
-  downloadCsv('shulekit_admissions_template.csv', [
+  downloadCsv('shulemoja_admissions_template.csv', [
     ['full_name', 'gender', 'date_of_birth', 'guardian_name', 'guardian_phone', 'applying_grade', 'status', 'notes'],
     ['John Otieno', 'M', '2016-05-01', 'Grace Otieno', '0722000000', 'Grade 1', 'enquiry', ''],
   ])

@@ -1,10 +1,19 @@
+import { ToastHost } from './components/ui'
 import { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
 import Login from './pages/Login'
 import ErrorBoundary from './components/ErrorBoundary'
 import { applyTheme, getTheme } from './lib/prefs'
 import AccountGate from './pages/AccountGate'
+import PartnerStats from './pages/PartnerStats'
 import { input, btn, Alert, PasswordInput, Spinner } from './components/ui'
+
+/** /partner/:code — public, no-login partner dashboard (see PartnerStats.jsx) */
+function matchPartnerRoute() {
+  if (typeof window === 'undefined') return null
+  const m = window.location.pathname.match(/^\/partner\/([^/]+)\/?$/i)
+  return m ? decodeURIComponent(m[1]) : null
+}
 
 function ResetPassword({ onDone }) {
   const [password, setPassword] = useState('')
@@ -44,6 +53,7 @@ export default function App() {
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
   const [recovering, setRecovering] = useState(false)
+  const partnerCode = matchPartnerRoute()
 
   useEffect(() => {
     applyTheme(getTheme())
@@ -58,20 +68,27 @@ export default function App() {
     return () => data.subscription.unsubscribe()
   }, [])
 
+  if (partnerCode) {
+    return <PartnerStats code={partnerCode} />
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen sk-mesh flex flex-col items-center justify-center gap-3">
         <div className="w-14 h-14 rounded-2xl bg-white/15 border border-white/20 flex items-center justify-center text-white font-black text-lg">SM</div>
         <h1 className="text-3xl font-black text-white">ShuleMoja</h1>
-        <span className="sk-spinner" />
+        <span className="sk-spinner" role="status" aria-label="Loading" />
       </div>
     )
   }
 
   if (session && recovering) return <ResetPassword onDone={() => setRecovering(false)} />
   return (
-    <ErrorBoundary>
+    <>
+      <ToastHost />
+      <ErrorBoundary>
       {session ? <AccountGate session={session} /> : <Login />}
     </ErrorBoundary>
+    </>
   )
 }

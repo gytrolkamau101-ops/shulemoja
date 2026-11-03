@@ -1,170 +1,203 @@
-import { useState } from 'react'
-import { canAccessModule } from '../lib/plans'
+import { useState, useEffect } from 'react'
+import { canAccessModule, planEntitlements } from '../lib/plans'
+import { canAccessPage } from '../lib/roles'
+import { canInstall, onInstallAvailability, promptInstall, isStandalone } from '../lib/installApp'
+import { LOGO_C2, BRAND_NAME } from '../brand'
 
-const DATA_EDITORS = ['Principal', 'Deputy Principal', 'Senior Teacher', 'Secretary']
-const DESK_ROLES = ['Kitchen', 'Watchman', 'Matron', 'Driver', 'Staff']
-const BOARDING_ROLES = [...DATA_EDITORS, 'Matron']
-
-const BASIC_ITEMS = [
-  { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
-  { id: 'students', label: 'Students', icon: '👥' },
-  { id: 'admissions', label: 'Admissions', icon: '📝' },
-  { id: 'finance', label: 'Student fees', icon: '💵' },
-  { id: 'exams', label: 'Exams', icon: '📋' },
-  { id: 'reports', label: 'Report cards', icon: '📄' },
-  { id: 'school-finance', label: 'School finance', icon: '📊' },
-  { id: 'resources', label: 'Resources', icon: '📚' },
-  { id: 'setup', label: 'School setup', icon: '⚙️' },
+/**
+ * Professional nav — fewer items, hubs for Communications & Reports.
+ * Complements dark brand: slate rail + blue active + restrained gold/silver for tiers.
+ */
+const DAILY = [
+  { id: 'dashboard', label: 'Dashboard', icon: '⌂' },
+  { id: 'students', label: 'Students', icon: '◎' },
+  { id: 'admissions', label: 'Admissions', icon: '＋' },
+  { id: 'finance', label: 'Student fees', icon: '¢', live: true },
+  { id: 'reports-hub', label: 'Reports', icon: '☰' },
+  { id: 'school-finance', label: 'School finance', icon: '▣' },
+  { id: 'setup', label: 'Setup', icon: '⚙' },
 ]
 
-const PREMIUM_ITEMS = [
-  { id: 'messages', label: 'Messages', icon: '💬' },
-  { id: 'attendance', label: 'Attendance', icon: '✅' },
-  { id: 'timetable', label: 'Timetable', icon: '🗓️' },
-  { id: 'circulars', label: 'Circulars', icon: '📢' },
-  { id: 'import', label: 'Import centre', icon: '📥' },
-  { id: 'records', label: 'Records vault', icon: '🗂️' },
-  { id: 'support', label: 'Contact Support', icon: '📞' },
-  { id: 'referrals', label: 'Invite · Earn', icon: '🏆' },
+const PREMIUM = [
+  { id: 'comms-hub', label: 'Communications', icon: '✉', live: true },
+  { id: 'attendance', label: 'Attendance', icon: '✓', live: true },
+  { id: 'timetable', label: 'Timetable', icon: '▦' },
+  { id: 'resources', label: 'Resources', icon: '▤' },
+  { id: 'import', label: 'Import', icon: '⇩' },
+  { id: 'support', label: 'Support', icon: '☎', live: true },
+  { id: 'referrals', label: 'Referrals', icon: '★' },
 ]
 
-const PRO_ITEMS = [
-  { id: 'boarding', label: 'Boarding', icon: '🏠' },
+const PRO = [
+  { id: 'library', label: 'Library', icon: '📘' },
+  { id: 'boarding', label: 'Boarding', icon: '⌂' },
   { id: 'transport', label: 'Transport', icon: '🚌' },
-  { id: 'bom', label: 'BOM portal', icon: '🏛️' },
-  { id: 'staff-desk', label: 'Staff desk', icon: '🛠' },
+  { id: 'staff-desk', label: 'Staff desk', icon: '⚒' },
+  { id: 'finance-analysis', label: 'Fee analysis', icon: '↗' },
   { id: 'games', label: 'Games', icon: '⚽' },
+  { id: 'bom', label: 'BOM', icon: '🏛' },
+  { id: 'records', label: 'Records', icon: '🗄' },
 ]
 
-function NavBtn({ item, active, locked, tone, onClick }) {
-  const tones = {
-    default: active
-      ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
+// Map hub pages so old deep links still highlight
+const ACTIVE_ALIASES = {
+  'reports-hub': ['reports-hub', 'exams', 'reports'],
+  'comms-hub': ['comms-hub', 'messages', 'circulars', 'parent-notices'],
+  'school-finance': ['school-finance', 'capitation'],
+}
+
+function isActive(page, id) {
+  if (page === id) return true
+  const aliases = ACTIVE_ALIASES[id]
+  return aliases ? aliases.includes(page) : false
+}
+
+function NavItem({ id, label, icon, page, locked, tone, onGo, live }) {
+  const active = isActive(page, id)
+  const base =
+    'w-full text-left px-3 py-2.5 rounded-lg text-sm font-semibold flex items-center gap-2.5 transition border'
+  const styles = {
+    basic: active
+      ? 'bg-sky-500 text-white border-sky-300 shadow-[0_0_20px_rgba(14,165,233,0.65)] ring-1 ring-sky-300/80'
       : locked
-        ? 'text-slate-500 bg-white/5'
-        : 'text-slate-100 hover:bg-white/10',
-    silver: active
-      ? 'bg-gradient-to-r from-slate-300 via-slate-100 to-slate-300 text-slate-900 shadow-lg shadow-slate-400/40'
-      : locked
-        ? 'text-slate-500 bg-white/5'
-        : 'text-slate-100 bg-slate-700/40 border border-slate-400/30 hover:border-slate-300/60 hover:bg-slate-600/40',
+        ? 'bg-sky-950/30 text-slate-500 border-sky-900/40'
+        : 'bg-sky-900/40 text-sky-50 border-sky-600/40 shadow-[0_0_12px_rgba(14,165,233,0.2)] hover:bg-sky-700/50 hover:shadow-[0_0_18px_rgba(14,165,233,0.45)]',
     gold: active
-      ? 'bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-amber-950 shadow-lg shadow-amber-500/40'
+      ? 'bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 text-amber-950 border-amber-200 shadow-[0_0_22px_rgba(251,191,36,0.7)] ring-1 ring-amber-200'
       : locked
-        ? 'text-slate-500 bg-white/5'
-        : 'text-amber-50 bg-amber-950/40 border border-amber-500/40 hover:border-amber-400/70 hover:bg-amber-900/50',
+        ? 'bg-amber-950/30 text-slate-500 border-amber-900/40'
+        : 'bg-amber-950/50 text-amber-50 border-amber-600/50 shadow-[0_0_12px_rgba(251,191,36,0.22)] hover:shadow-[0_0_20px_rgba(251,191,36,0.5)] hover:border-amber-400/70',
+    silver: active
+      ? 'bg-gradient-to-r from-slate-100 via-white to-slate-200 text-slate-900 border-white shadow-[0_0_22px_rgba(226,232,240,0.55)] ring-1 ring-slate-200'
+      : locked
+        ? 'bg-slate-800/40 text-slate-500 border-slate-700/50'
+        : 'bg-slate-700/50 text-slate-50 border-slate-400/40 shadow-[0_0_12px_rgba(148,163,184,0.25)] hover:shadow-[0_0_20px_rgba(226,232,240,0.4)] hover:border-slate-200/60',
   }
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition ${tones[tone] || tones.default}`}
-    >
-      <span className="text-base">{item.icon}</span>
-      <span className="flex-1">{item.label}</span>
-      {locked && <span className="text-[9px] font-black uppercase tracking-wide opacity-80">Lock</span>}
+    <button type="button" onClick={() => onGo(id)} className={`${base} ${styles[tone] || styles.basic}`}>
+      <span className="w-5 text-center opacity-90 text-xs">{icon}</span>
+      <span className="flex-1 truncate">{label}</span>
+      {live && !locked && <span className="sm-live-dot" title="Live" aria-hidden="true" />}
+      {locked && <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">Pro</span>}
     </button>
   )
 }
 
-function Group({ title, open, setOpen, children, tone }) {
-  const head =
-    tone === 'silver'
-      ? 'bg-gradient-to-r from-slate-600 to-slate-500 text-white border border-slate-400/40'
-      : tone === 'gold'
-        ? 'bg-gradient-to-r from-amber-600 to-yellow-500 text-amber-950 border border-amber-300/50'
-        : 'bg-slate-800 text-slate-200 border border-slate-600'
+function Section({ title, tone, children }) {
+  const titleCls =
+    tone === 'gold'
+      ? 'text-amber-300/90'
+      : tone === 'silver'
+        ? 'text-slate-300'
+        : 'text-sky-300/90'
   return (
-    <div className="mb-3">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider ${head}`}
-      >
-        {title}
-        <span className="text-sm">{open ? '▴' : '▾'}</span>
-      </button>
-      {open && <div className="mt-1.5 space-y-1">{children}</div>}
+    <div className="mb-4">
+      <p className={`px-3 mb-1.5 text-[10px] font-black uppercase tracking-[0.14em] ${titleCls}`}>{title}</p>
+      <div className="space-y-0.5">{children}</div>
     </div>
   )
 }
 
 export default function Sidebar({ page, onPage, user, school, open, onClose }) {
-  const role = user?.role || ''
-  const [basicOpen, setBasicOpen] = useState(true)
-  const [premOpen, setPremOpen] = useState(true)
-  const [proOpen, setProOpen] = useState(true)
-  const deskOnly = DESK_ROLES.includes(role) && !DATA_EDITORS.includes(role)
+  const role = user?.role
+  const ent = planEntitlements(school || {})
+  const [installOk, setInstallOk] = useState(canInstall())
+
+  useEffect(() => onInstallAvailability(() => setInstallOk(canInstall())), [])
 
   const go = (id) => {
+    if (!canAccessPage(role, id) && !['comms-hub', 'reports-hub'].includes(id)) return
+    // Hub access: if user can open any child
+    if (id === 'comms-hub') {
+      const ok =
+        canAccessPage(role, 'messages') ||
+        canAccessPage(role, 'circulars') ||
+        canAccessPage(role, 'parent-notices')
+      if (!ok) return
+    }
+    if (id === 'reports-hub') {
+      const ok = canAccessPage(role, 'exams') || canAccessPage(role, 'reports')
+      if (!ok) return
+    }
     onPage?.(id)
     onClose?.()
   }
 
-  const body = (
-    <div className="p-3 h-full overflow-y-auto bg-gradient-to-b from-slate-950 to-slate-900 text-white">
-      <div className="flex items-center gap-2 mb-4 px-1">
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center text-lg shadow-lg">🌐</div>
-        <div>
-          <p className="font-black text-sm leading-tight">Menu</p>
-          <p className="text-[10px] text-slate-400">ShuleMoja · BigDataKE</p>
+  const locked = (id) => {
+    if (id === 'comms-hub') return !canAccessModule(school, 'messages') && !canAccessModule(school, 'circulars')
+    if (id === 'reports-hub') return !canAccessModule(school, 'exams') && !canAccessModule(school, 'reports')
+    return !canAccessModule(school, id)
+  }
+
+  const show = (id) => {
+    if (id === 'comms-hub') {
+      return (
+        canAccessPage(role, 'messages') ||
+        canAccessPage(role, 'circulars') ||
+        canAccessPage(role, 'parent-notices')
+      )
+    }
+    if (id === 'reports-hub') {
+      return canAccessPage(role, 'exams') || canAccessPage(role, 'reports')
+    }
+    return canAccessPage(role, id)
+  }
+
+  const rail = (
+    <div className="flex flex-col h-full bg-slate-950 text-slate-100 border-r border-slate-800">
+      <div className="px-4 pt-4 pb-3 border-b border-slate-800 flex items-center gap-3">
+        <img src={LOGO_C2} alt="" className="w-10 h-10 rounded-lg object-cover ring-1 ring-sky-500/40" />
+        <div className="min-w-0">
+          <p className="font-black text-white text-sm leading-tight truncate">{BRAND_NAME}</p>
+          <p className="text-[10px] text-slate-400 truncate">{school?.school_name || 'School console'}</p>
         </div>
       </div>
-      {deskOnly ? (
-        <NavBtn item={{ id: 'staff-desk', label: 'Staff desk', icon: '🛠' }} active={page === 'staff-desk'} tone="gold" onClick={() => go('staff-desk')} />
-      ) : (
-        <>
-          <Group title="Core" open={basicOpen} setOpen={setBasicOpen}>
-            {BASIC_ITEMS.map((item) => (
-              <NavBtn key={item.id} item={item} active={page === item.id} onClick={() => go(item.id)} />
-            ))}
-          </Group>
-          <Group title="Premium features" open={premOpen} setOpen={setPremOpen} tone="silver">
-            {PREMIUM_ITEMS.map((item) => (
-              <NavBtn
-                key={item.id}
-                item={item}
-                tone="silver"
-                active={page === item.id}
-                locked={!canAccessModule(school, item.id)}
-                onClick={() => go(item.id)}
-              />
-            ))}
-          </Group>
-          <Group title="Pro kit" open={proOpen} setOpen={setProOpen} tone="gold">
-            {PRO_ITEMS.map((item) => (
-              <NavBtn
-                key={item.id}
-                item={item}
-                tone="gold"
-                active={page === item.id}
-                locked={!canAccessModule(school, item.id)}
-                onClick={() => go(item.id)}
-              />
-            ))}
-          </Group>
-        </>
-      )}
-      <p className="mt-6 px-1 text-[10px] text-slate-500">ShuleMoja<br />© BigDataKE Technologies</p>
+
+      <div className="flex-1 overflow-y-auto px-2 py-3">
+        <Section title="Daily work" tone="basic">
+          {DAILY.filter((i) => show(i.id)).map((i) => (
+            <NavItem key={i.id} {...i} page={page} locked={locked(i.id)} tone="basic" onGo={go} />
+          ))}
+        </Section>
+        <Section title="Premium" tone="gold">
+          {PREMIUM.filter((i) => show(i.id)).map((i) => (
+            <NavItem key={i.id} {...i} page={page} locked={locked(i.id)} tone="gold" onGo={go} />
+          ))}
+        </Section>
+        <Section title="Pro" tone="silver">
+          {PRO.filter((i) => show(i.id)).map((i) => (
+            <NavItem key={i.id} {...i} page={page} locked={locked(i.id)} tone="silver" onGo={go} />
+          ))}
+        </Section>
+      </div>
+
+      <div className="p-3 border-t border-slate-800 space-y-2">
+        {!isStandalone() && installOk && (
+          <button
+            type="button"
+            onClick={() => promptInstall()}
+            className="w-full py-2.5 rounded-lg text-sm font-bold bg-sky-600 hover:bg-sky-500 text-white"
+          >
+            Install app
+          </button>
+        )}
+        <p className="text-[10px] text-center text-slate-500">
+          {(ent.planId || 'free').toUpperCase()}
+          {ent.expired ? ' · expired' : ''}
+        </p>
+      </div>
     </div>
   )
 
   return (
     <>
-      <aside className="hidden md:flex md:flex-col w-64 shrink-0 border-r border-slate-800 min-h-[calc(100vh-3.5rem)]">
-        {body}
-      </aside>
+      {/* Desktop */}
+      <aside className="hidden md:flex md:flex-col w-60 shrink-0 h-full">{rail}</aside>
+      {/* Mobile drawer */}
       {open && (
-        <div className="fixed inset-0 z-50 md:hidden">
-          <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-          <aside className="absolute left-0 top-0 bottom-0 w-[min(90vw,20rem)] shadow-2xl flex flex-col">
-            <div className="flex items-center justify-end p-2 bg-slate-950">
-              <button type="button" className="px-3 py-1.5 rounded-lg bg-slate-700 text-white text-xs font-bold" onClick={onClose}>
-                Close
-              </button>
-            </div>
-            <div className="flex-1 overflow-hidden">{body}</div>
-          </aside>
+        <div className="md:hidden fixed inset-0 z-50 flex">
+          <div className="absolute inset-0 bg-black/60" onClick={onClose} />
+          <aside className="relative w-[min(18rem,88vw)] h-full shadow-2xl">{rail}</aside>
         </div>
       )}
     </>

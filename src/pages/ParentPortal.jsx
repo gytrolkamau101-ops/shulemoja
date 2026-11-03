@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { supabase } from '../supabaseClient'
 import { Card, Scroll, Alert, th, td, fmt, btn, btnGreen, Spinner, input } from '../components/ui'
 import { planEntitlements } from '../lib/plans'
@@ -20,7 +20,9 @@ export default function ParentPortal({ session }) {
           .select('id, status, students(*)')
           .eq('parent_id', session.user.id)
           .eq('status', 'approved')
-        const list = (links || []).map((l) => l.students).filter(Boolean)
+        const list = (links || [])
+          .map((l) => l.students)
+          .filter((s) => s && String(s.status || 'Active') === 'Active')
         setChildren(list)
         if (list.length > 0) setActiveChild((cur) => cur || list[0].id)
       } else setChildren([])
@@ -134,19 +136,37 @@ function printFeeStatement({ student, schoolName, rows, termLabel }) {
 }
 
 
-function printExamSummary({ student, schoolName, results, termLabel }) {
-  const body = (results || []).map((r) =>
-    `<tr><td>${r.exams?.exam_name || ''}</td><td>${r.subjects?.subject_name || ''}</td><td style="text-align:center">${r.marks_obtained ?? '—'}</td><td style="text-align:center">${r.grade || '—'}</td></tr>`
-  ).join('')
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Exam summary</title>
-  <style>body{font-family:system-ui;margin:24px}table{width:100%;border-collapse:collapse}td,th{border:1px solid #cbd5e1;padding:6px;font-size:12px}
-  h1{font-size:18px;text-align:center}</style></head><body>
+function printExamSummary({ student, schoolName, results, termLabel, logoUrl }) {
+  const body = (results || [])
+    .map(
+      (r) =>
+        `<tr><td>${r.exams?.exam_name || ''}</td><td>${r.subjects?.subject_name || ''}</td><td style="text-align:center">${r.marks_obtained ?? '—'}</td><td style="text-align:center">${r.grade || '—'}</td></tr>`
+    )
+    .join('')
+  const logo = logoUrl ? `<img src="${logoUrl}" style="max-height:56px;margin:0 auto 8px;display:block"/>` : ''
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Results</title>
+  <style>
+    body{font-family:system-ui,sans-serif;margin:24px;color:#0f172a}
+    h1{font-size:18px;text-align:center;margin:4px 0}
+    .sub{text-align:center;color:#64748b;font-size:12px;margin-bottom:12px}
+    table{width:100%;border-collapse:collapse}
+    th,td{border:1px solid #cbd5e1;padding:8px;font-size:12px}
+    th{background:#f1f5f9}
+    .foot{margin-top:20px;font-size:10px;color:#94a3b8;text-align:center}
+  </style></head><body>
+  ${logo}
   <h1>${schoolName || 'School'}</h1>
-  <p style="text-align:center">${student.first_name} ${student.last_name} · ${termLabel || ''}</p>
-  <table><thead><tr><th>Exam</th><th>Subject</th><th>Marks</th><th>Grade</th></tr></thead><tbody>${body}</tbody></table>
-  <script>window.onload=()=>setTimeout(()=>window.print(),300)</script></body></html>`
+  <div class="sub">Exam results · ${termLabel || ''}</div>
+  <p style="text-align:center;font-weight:700">${student?.first_name || ''} ${student?.last_name || ''} · Adm ${student?.admission_no || ''}</p>
+  <table><thead><tr><th>Exam</th><th>Subject</th><th>Marks</th><th>Grade</th></tr></thead>
+  <tbody>${body || '<tr><td colspan="4">No results</td></tr>'}</tbody></table>
+  <p class="foot">ShuleMoja · BigDataKE Technologies</p>
+  <script>window.onload=function(){setTimeout(function(){window.print()},300)}<\/script>
+  </body></html>`
   const w = window.open('', '_blank')
-  if (w) { w.document.write(html); w.document.close() }
+  if (!w) return alert('Allow pop-ups to print')
+  w.document.write(html)
+  w.document.close()
 }
 
 function ChildDetail({ student, schoolId, session }) {
@@ -164,6 +184,7 @@ function ChildDetail({ student, schoolId, session }) {
   const [canDownload, setCanDownload] = useState(false)
   const [schoolName, setSchoolName] = useState('')
   const [circulars, setCirculars] = useState([])
+  const [notices, setNotices] = useState([])
   const [timetable, setTimetable] = useState([])
   const [gradeId, setGradeId] = useState(null)
 
@@ -178,13 +199,21 @@ function ChildDetail({ student, schoolId, session }) {
           .order('term', { ascending: false }),
         supabase
           .from('schools')
-          .select('mpesa_paybill, mpesa_till, mpesa_phone, mpesa_account_ref, fee_payment_instructions, plan, plan_expires_at')
+          .select('school_name, logo_url, mpesa_paybill, mpesa_till, mpesa_phone, mpesa_account_ref, fee_payment_instructions, plan, plan_expires_at')
           .eq('id', schoolId)
           .maybeSingle(),
       ])
       setTerms(tlist || [])
       setSchoolPay(sch || null)
+      const { data: nlist } = await supabase
+        .from('parent_notices')
+        .select('*')
+        .eq('student_id', student.id)
+        .order('created_at', { ascending: false })
+        .limit(20)
+      setNotices(nlist || [])
       setSchoolPlan(sch || null)
+      if (sch?.school_name) setSchoolName(sch.school_name)
       const cur = (tlist || []).find((t) => t.is_current) || (tlist || [])[0]
       if (cur) setTermId(cur.id)
     })()
@@ -264,7 +293,8 @@ function ChildDetail({ student, schoolId, session }) {
         .maybeSingle()
       const prem = planEntitlements(schMeta || {})
       setCanDownload(!!prem.parentDownloads)
-      setSchoolPlan(schMeta?.plan || null)
+      if (schMeta) setSchoolPlan((prev) => ({ ...(prev || {}), ...schMeta }))
+      /* school name */
       setSchoolName(schMeta?.school_name || '')
       let circ = []
       let slots = []
@@ -304,6 +334,31 @@ function ChildDetail({ student, schoolId, session }) {
   const totalDue = (feeTotal || 0) + arrears
   const balance = feeTotal === null && !arrears ? null : totalDue - paid
 
+  const ent = planEntitlements(schoolPlan && typeof schoolPlan === 'object' ? schoolPlan : { plan: schoolPlan || 'free' })
+  const showCharts = !!(ent.parentDownloads || ent.messages || (ent.planId && ent.planId !== 'free' && !ent.readOnly))
+
+  const examTrends = useMemo(() => {
+    const byExam = {}
+    ;(results || []).forEach((r) => {
+      const name = r.exams?.exam_name || 'Exam'
+      if (!byExam[name]) byExam[name] = []
+      byExam[name].push(Number(r.marks_obtained) || 0)
+    })
+    return Object.entries(byExam).map(([name, arr]) => ({
+      name,
+      avg: Math.round((arr.reduce((a, b) => a + b, 0) / arr.length) * 10) / 10,
+    }))
+  }, [results])
+
+  const paymentBars = useMemo(() => {
+    return (payments || []).slice(0, 8).map((p) => ({
+      label: p.payment_date ? new Date(p.payment_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : '—',
+      amount: Number(p.amount_paid) || 0,
+    })).reverse()
+  }, [payments])
+
+  const maxPay = Math.max(1, ...paymentBars.map((b) => b.amount))
+
   return (
     <div className="space-y-6">
       <Card>
@@ -328,6 +383,22 @@ function ChildDetail({ student, schoolId, session }) {
         <p className="text-slate-600">Loading term data…</p>
       ) : (
         <>
+          <p className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 mb-3">
+            Fee balance · pay the school · exam results
+          </p>
+          {notices.length > 0 && (
+            <Card title="Letters from school">
+              <ul className="space-y-3">
+                {notices.map((n) => (
+                  <li key={n.id} className="border border-slate-200 rounded-xl p-3">
+                    <p className="text-xs font-bold uppercase text-slate-500">{n.notice_type}</p>
+                    <p className="font-bold text-slate-900">{n.title}</p>
+                    <p className="text-sm text-slate-700 whitespace-pre-wrap mt-1">{n.body}</p>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
           <Card title={`Fees — Term ${term.term}, ${term.year}`}>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
               <div>
@@ -349,7 +420,7 @@ function ChildDetail({ student, schoolId, session }) {
                 </p>
               </div>
             </div>
-            {balance > 0 && (
+            {(balance == null || balance >= 0) && (
               <div className="mt-4 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
                 <p className="text-sm font-bold text-slate-900">How to pay</p>
                 <p className="text-xs text-slate-600">
@@ -395,7 +466,7 @@ function ChildDetail({ student, schoolId, session }) {
                   </div>
                 ) : (
                   <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3">
-                    This school has not published a Till/Paybill yet. Contact the school office to pay and ask them to record your payment.
+                    No Till/Paybill on file yet. Principal: School Setup → Payment settings (Paybill/Till). If already saved, run SQL 27_v54_parent_school_pay.sql so parents can read it.
                   </p>
                 )}
                 <p className="text-[11px] text-slate-500">
@@ -413,6 +484,11 @@ function ChildDetail({ student, schoolId, session }) {
                     schoolName,
                     rows: payments,
                     termLabel: term ? `Term ${term.term} ${term.year}` : '',
+                    logoUrl: null,
+                    paid: payments.reduce((s, p) => s + Number(p.amount_paid || 0), 0),
+                    balance: null,
+                    termFee: null,
+                    arrears: null,
                   })
                 }
               >
@@ -446,12 +522,55 @@ function ChildDetail({ student, schoolId, session }) {
             )}
           </Card>
 
-          {canDownload && results.length > 0 && (
+          {results.length > 0 && (
               <button type="button" className="px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-black shadow-md mb-2"
                 onClick={() => printExamSummary({ student, schoolName, results, termLabel: term ? `Term ${term.term} ${term.year}` : '' })}>
-                Download exam summary
+                Download / print results
               </button>
             )}
+          {(ent.planId === 'free' || ent.readOnly) && (
+            <div className="rounded-xl border-2 border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-950">
+              School plan limited — contact the school office.
+            </div>
+          )}
+          
+          {showCharts && (examTrends.length > 1 || paymentBars.length > 0) && (
+            <div className="grid sm:grid-cols-2 gap-4">
+              {examTrends.length > 1 && (
+                <Card title="Results trend">
+                  <div className="flex items-end gap-2 h-28">
+                    {examTrends.map((ex) => {
+                      const h = Math.max(8, Math.round((Math.min(100, ex.avg) / 100) * 96))
+                      return (
+                        <div key={ex.name} className="flex-1 flex flex-col items-center justify-end gap-1 h-full">
+                          <span className="text-[10px] font-bold text-slate-700">{ex.avg}</span>
+                          <div className="w-full max-w-[2.5rem] bg-blue-600 rounded-t" style={{ height: h }} />
+                          <span className="text-[9px] text-slate-500 truncate max-w-full text-center">{ex.name}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </Card>
+              )}
+              {paymentBars.length > 0 && (
+                <Card title="Fee payments">
+                  <div className="flex items-end gap-1.5 h-28">
+                    {paymentBars.map((b, i) => {
+                      const h = Math.max(6, Math.round((b.amount / maxPay) * 96))
+                      return (
+                        <div key={i} className="flex-1 flex flex-col items-center justify-end gap-1 h-full">
+                          <span className="text-[9px] font-bold text-emerald-800">{b.amount >= 1000 ? Math.round(b.amount / 1000) + 'k' : b.amount}</span>
+                          <div className="w-full max-w-[2rem] bg-emerald-500 rounded-t" style={{ height: h }} />
+                          <span className="text-[8px] text-slate-500 truncate max-w-full">{b.label}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </Card>
+              )}
+            </div>
+          )}
+
           <Card title="Exam results" className="!p-0">
             {results.length === 0 ? (
               <p className="p-6 text-center text-sm text-slate-500">No results for this term</p>

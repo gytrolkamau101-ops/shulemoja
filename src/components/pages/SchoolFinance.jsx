@@ -24,14 +24,14 @@ export default function SchoolFinance({ school, term, user }) {
   const fetchAll = useCallback(async () => {
     setLoading(true)
     const tasks = [
-      supabase.from('school_events').select('*').eq('school_id', school.id).order('event_date'),
+      supabase.from('school_events').select('*').eq('school_id', school?.id).order('event_date'),
     ]
     if (term) {
       tasks.unshift(
         supabase
           .from('expenses')
           .select('*')
-          .eq('school_id', school.id)
+          .eq('school_id', school?.id)
           .eq('term_id', term.id)
           .order('expense_date', { ascending: false })
       )
@@ -45,7 +45,7 @@ export default function SchoolFinance({ school, term, user }) {
       setEvents(results[0].data || [])
     }
     setLoading(false)
-  }, [school.id, term])
+  }, [school?.id, term])
 
   useEffect(() => {
     fetchAll()
@@ -53,12 +53,26 @@ export default function SchoolFinance({ school, term, user }) {
 
   const totalExpenses = useMemo(() => expenses.reduce((s, e) => s + Number(e.amount), 0), [expenses])
 
+  const delExpense = async (id) => {
+    if (!canEdit || !confirm('Delete this expense?')) return
+    const { error } = await supabase.from('expenses').delete().eq('id', id)
+    if (error) setError(error.message)
+    else fetchAll()
+  }
+
+  const delEvent = async (id) => {
+    if (!canEdit || !confirm('Delete this event?')) return
+    const { error } = await supabase.from('school_events').delete().eq('id', id)
+    if (error) setError(error.message)
+    else fetchAll()
+  }
+
   const saveExpense = async (e) => {
     e.preventDefault()
     setError('')
     const { error } = await supabase.from('expenses').insert([
       {
-        school_id: school.id,
+        school_id: school?.id,
         term_id: term.id,
         expense_type: expType,
         amount: Number(expAmount),
@@ -78,7 +92,7 @@ export default function SchoolFinance({ school, term, user }) {
     setError('')
     const { error } = await supabase
       .from('school_events')
-      .insert([{ school_id: school.id, event_name: evName, event_date: evDate, description: evDesc }])
+      .insert([{ school_id: school?.id, event_name: evName, event_date: evDate, description: evDesc }])
     if (error) return setError(error.message)
     setEvName('')
     setEvDate('')
@@ -189,6 +203,7 @@ export default function SchoolFinance({ school, term, user }) {
                     <th className={th}>Type</th>
                     <th className={th}>Amount</th>
                     <th className={th}>Date</th>
+                    {canEdit && <th className={th}></th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -197,6 +212,11 @@ export default function SchoolFinance({ school, term, user }) {
                       <td className={td}>{e.expense_type}</td>
                       <td className={`${td} font-semibold`}>KES {fmt(e.amount)}</td>
                       <td className={td}>{new Date(e.expense_date).toLocaleDateString('en-GB')}</td>
+                      {canEdit && (
+                        <td className={td}>
+                          <button type="button" className="text-red-600 text-xs font-bold" onClick={() => delExpense(e.id)}>Delete</button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -213,10 +233,15 @@ export default function SchoolFinance({ school, term, user }) {
           ) : (
             <div className="p-4 space-y-3">
               {events.map((e) => (
-                <div key={e.id} className="border-l-4 border-blue-500 pl-3">
-                  <p className="font-semibold text-gray-800">{e.event_name}</p>
-                  <p className="text-sm text-gray-600">{new Date(e.event_date).toLocaleDateString('en-GB')}</p>
-                  {e.description && <p className="text-sm text-gray-700 mt-1">{e.description}</p>}
+                <div key={e.id} className="border-l-4 border-blue-500 pl-3 flex justify-between gap-2">
+                  <div>
+                    <p className="font-semibold text-gray-800">{e.event_name}</p>
+                    <p className="text-sm text-gray-600">{new Date(e.event_date).toLocaleDateString('en-GB')}</p>
+                    {e.description && <p className="text-sm text-gray-700 mt-1">{e.description}</p>}
+                  </div>
+                  {canEdit && (
+                    <button type="button" className="text-red-600 text-xs font-bold shrink-0" onClick={() => delEvent(e.id)}>Delete</button>
+                  )}
                 </div>
               ))}
             </div>

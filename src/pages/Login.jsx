@@ -1,26 +1,42 @@
 import { useState, useEffect, useRef } from 'react'
-import { supabase } from '../supabaseClient'
+import { supabase, supabaseConfigError } from '../supabaseClient'
 import { input, btn, btnGreen, Alert, PasswordInput, Spinner } from '../components/ui'
-import { getSettings } from '../lib/platform'
+import { getSetting, getSettings } from '../lib/platform'
 import { payPlatformPlan, hostedCheckoutPlatform } from '../lib/intasend'
 import { captchaRequired, renderTurnstile, resetTurnstile, getTurnstileSiteKey } from '../lib/captcha'
 import { DEFAULT_PRIVACY } from '../lib/privacyDefault'
+import CmsViews from './login/CmsViews'
 import { DEFAULT_PLANS } from '../lib/plans'
 import { BRAND_NAME, COMPANY_NAME, TAGLINE, LOGO_TEXT, LOGO_C2, PRODUCT_LINE, COUNTRY_LINE, COPYRIGHT } from '../brand'
 
 
 
 export default function Login() {
+  const configErr = supabaseConfigError
+
   const [mode, setMode] = useState('login')
   const [accountType, setAccountType] = useState('staff')
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(() => {
+    try {
+      return localStorage.getItem('sm_last_email') || ''
+    } catch (_) {
+      return ''
+    }
+  })
   const [password, setPassword] = useState('')
   const [fullName, setFullName] = useState('')
   const [regType, setRegType] = useState('join')
   const [schoolName, setSchoolName] = useState('')
   const [schoolLevel, setSchoolLevel] = useState('primary')
   const [referralCode, setReferralCode] = useState('')
-  const [schoolCode, setSchoolCode] = useState('')
+  const [partnerCode, setPartnerCode] = useState('')
+  const [schoolCode, setSchoolCode] = useState(() => {
+    try {
+      return localStorage.getItem('sm_last_school_code') || ''
+    } catch (_) {
+      return ''
+    }
+  })
   const [codeSchool, setCodeSchool] = useState('')
   const [role, setRole] = useState('Teacher')
   const [admissionNo, setAdmissionNo] = useState('')
@@ -41,10 +57,26 @@ export default function Login() {
     product_line: PRODUCT_LINE,
     country_line: COUNTRY_LINE,
     company_line: COMPANY_NAME,
-    login_subtext:
-      'Fees, exams, parents & terms — not a school directory. School fee money goes to your Till/Paybill.',
+    login_subtext: '',
     footer_text: COPYRIGHT,
   })
+
+  // Instant paint from last Super Admin save (avoid flash of default logo/text)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('sm_login_theme')
+      if (raw) {
+        const th = JSON.parse(raw)
+        if (th && typeof th === 'object') {
+          setTheme((p) => ({ ...p, ...th }))
+          const r = document.documentElement
+          if (th.primary) r.style.setProperty('--sk-primary', th.primary)
+          if (th.accent) r.style.setProperty('--sk-accent', th.accent)
+        }
+      }
+    } catch (_) {}
+  }, [])
+
   const [pricing, setPricing] = useState(DEFAULT_PLANS)
   const [terms, setTerms] = useState({
     title: 'Terms & Conditions',
@@ -114,7 +146,17 @@ Basic includes core records and finance. Premium unlocks Messages, Attendance, T
       try {
         getSetting('privacy').then((p) => p && setCmsPrivacy(p)).catch(() => {});
     const s = await getSettings(['theme', 'pricing', 'terms', 'how_it_works', 'contacts'])
-        if (s.theme) setTheme((p) => ({ ...p, ...s.theme }))
+
+        if (s.theme) {
+          setTheme((p) => ({ ...p, ...s.theme, login_subtext: s.theme.login_subtext ?? '' }))
+          try {
+            const th = s.theme
+            const r = document.documentElement
+            if (th.primary) r.style.setProperty('--sk-primary', th.primary)
+            if (th.accent) r.style.setProperty('--sk-accent', th.accent)
+            localStorage.setItem('sm_login_theme', JSON.stringify(th))
+          } catch (_) {}
+        }
         if (s.pricing?.plans?.length) setPricing(s.pricing)
         else setPricing(DEFAULT_PLANS)
         if (s.terms) setTerms(s.terms)
@@ -199,10 +241,31 @@ Basic includes core records and finance. Premium unlocks Messages, Attendance, T
   const handleLogin = async (e) => {
     e.preventDefault()
     reset()
+    if (supabaseConfigError) {
+      setError(supabaseConfigError)
+      return
+    }
     setBusy(true)
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      if (!error) {
+        try {
+          localStorage.setItem('sm_last_email', email)
+          if (schoolCode) localStorage.setItem('sm_last_school_code', schoolCode)
+        } catch (_) {}
+      }
+      if (error) {
+        const msg = error.message || String(error)
+        if (/failed to fetch|networkerror|load failed/i.test(msg)) {
+          setError(
+            'Network error reaching Supabase. Check .env, restart Vite, phone internet, and clear site data for this page.'
+          )
+        } else setError(msg)
+      }
+    } catch (err) {
+      setError(err?.message || 'Login failed')
+    }
     setBusy(false)
-    if (error) setError(error.message)
   }
 
   const handleRegister = async (e) => {
@@ -248,15 +311,21 @@ Basic includes core records and finance. Premium unlocks Messages, Attendance, T
     } else {
       meta =
         regType === 'new'
-          ? { full_name: fullName, school_name: schoolName, school_level: schoolLevel, referral_code: referralCode.trim().toUpperCase() }
+          ? {
+              full_name: fullName,
+              school_name: schoolName,
+              school_level: schoolLevel,
+              referral_code: referralCode.trim().toUpperCase(),
+              referred_by_partner_code: partnerCode.trim().toUpperCase(),
+            }
           : { full_name: fullName, school_code: schoolCode, role }
     }
-    const { data, error } = if (mode === 'register' && captchaRequired() && !captchaToken) {
+    if (mode === 'register' && captchaRequired() && !captchaToken) {
       setBusy(false)
-      setError("Complete the captcha before creating an account.")
+      setError('Complete the captcha before creating an account.')
       return
     }
-    await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: { data: meta },
@@ -309,72 +378,22 @@ Basic includes core records and finance. Premium unlocks Messages, Attendance, T
       : { background: `linear-gradient(135deg, ${theme.bg_from || '#0f172a'}, ${theme.bg_to || '#1e3a8a'})` }
 
   if (view !== 'auth') {
-    const page =
-      view === 'pricing'
-        ? null
-        : view === 'terms'
-          ? terms
-          : view === 'privacy'
-            ? (cmsPrivacy && (cmsPrivacy.title || cmsPrivacy.body) ? cmsPrivacy : DEFAULT_PRIVACY)
-          : view === 'how'
-            ? how
-            : contacts
     return (
-      <div className="min-h-screen flex flex-col items-center p-4" style={bgStyle}>
-        <div className="w-full max-w-lg sk-glass rounded-2xl p-6 my-8 space-y-4">
-          <button type="button" className="text-sm font-bold text-blue-700" onClick={() => setView('auth')}>
-            ← Back
-          </button>
-          {view === 'pricing' ? (
-            <>
-              <h2 className="text-2xl font-black text-slate-900">Choose a plan</h2>
-              <p className="text-sm text-slate-600">Pay with M-Pesa / card via IntaSend. After payment, register or log in as Principal.</p>
-              <Alert>{error}</Alert>
-              <Alert kind="ok">{info}</Alert>
-              <div className="space-y-3">
-                {(pricing?.plans?.length ? pricing.plans : DEFAULT_PLANS.plans).map((plan) => (
-                  <div key={plan.id || plan.name} className="border border-slate-200 rounded-xl p-4">
-                    <div className="flex justify-between items-start gap-2">
-                      <div>
-                        <p className="font-black text-lg">{plan.name}</p>
-                        <p className="text-sm text-slate-500">{plan.period}</p>
-                      </div>
-                      <p className="font-black text-blue-700">
-                        {Number(plan.price) <= 0 ? 'Free' : `${pricing.currency || 'KES'} ${Number(plan.price).toLocaleString()}`}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      disabled={payBusy}
-                      className={`${btnGreen} w-full mt-3`}
-                      onClick={() => openPayForm(plan)}
-                    >
-                      {Number(plan.price) <= 0 ? 'Start free' : 'Pay & subscribe'}
-                    </button>
-                  </div>
-                ))}
-                {!(pricing.plans || []).length && (
-                  <p className="text-sm text-slate-500">Pricing not configured yet. Super Admin → Pricing.</p>
-                )}
-              </div>
-            </>
-          ) : (
-            <>
-              <h2 className="text-2xl font-black text-slate-900">{page?.title || view}</h2>
-              {view === 'contact' ? (
-                <div className="text-sm text-slate-700 space-y-2">
-                  <p>Email: {contacts?.email || '—'}</p>
-                  <p>Phone: {contacts?.phone || '—'}</p>
-                  <p>WhatsApp: {contacts?.whatsapp || '—'}</p>
-                  <p>Address: {contacts?.address || '—'}</p>
-                </div>
-              ) : (
-                <p className="text-sm text-slate-700 whitespace-pre-wrap">{page?.body || 'Content coming soon.'}</p>
-              )}
-            </>
-          )}
-        </div>
-      </div>
+      <CmsViews
+        view={view}
+        setView={setView}
+        bgStyle={bgStyle}
+        pricing={pricing}
+        terms={terms}
+        how={how}
+        contacts={contacts}
+        cmsPrivacy={cmsPrivacy}
+        configErr={configErr}
+        error={error}
+        info={info}
+        payBusy={payBusy}
+        openPayForm={openPayForm}
+      />
     )
   }
 
@@ -385,17 +404,36 @@ Basic includes core records and finance. Premium unlocks Messages, Attendance, T
 
       <div className="relative w-full max-w-md sk-animate-in">
         <div className="text-center mb-4">
-          <img
-            src={
-              theme.brand_logo_url && String(theme.brand_logo_url).trim()
-                ? theme.brand_logo_url
-                : LOGO_C2
-            }
-            alt={`${theme.brand_name || BRAND_NAME} — ${theme.product_line || PRODUCT_LINE}`}
-            className="mx-auto w-full max-w-[280px] max-h-[220px] md:max-h-[260px] rounded-2xl shadow-2xl shadow-black/50 border border-white/15 object-contain bg-black"
-            key={theme.brand_logo_url ? 'custom-logo' : 'default-logo'}
-          />
-          <p className="text-cyan-100/85 mt-3 text-[11px] font-semibold tracking-[0.14em] uppercase">
+          {theme.brand_logo_url && String(theme.brand_logo_url).trim() ? (
+            <img
+              src={String(theme.brand_logo_url).trim()}
+              alt={`${theme.brand_name || BRAND_NAME}`}
+              decoding="async"
+              fetchpriority="high"
+              className="mx-auto w-full max-w-[280px] max-h-[220px] md:max-h-[260px] rounded-2xl shadow-2xl shadow-black/50 border border-white/15 object-contain bg-black"
+              key="custom-logo"
+            />
+          ) : theme.hide_stock_logo ? (
+            <div
+              className="mx-auto w-24 h-24 rounded-2xl flex items-center justify-center text-3xl font-black text-white shadow-2xl border border-white/20"
+              style={{ background: theme.primary || '#1d4ed8' }}
+            >
+              {(theme.logo_text || LOGO_TEXT || 'SM').slice(0, 3)}
+            </div>
+          ) : (
+            <img
+              src={LOGO_C2}
+              alt={`${theme.brand_name || BRAND_NAME}`}
+              width={420}
+              height={625}
+              fetchpriority="high"
+              decoding="async"
+              className="mx-auto w-full max-w-[280px] max-h-[220px] md:max-h-[260px] rounded-2xl shadow-2xl shadow-black/50 border border-white/15 object-contain bg-black"
+              key="stock-logo"
+            />
+          )}
+          <p className="text-white font-black text-xl mt-3 tracking-tight">{theme.brand_name || BRAND_NAME}</p>
+          <p className="text-cyan-100/85 mt-1 text-[11px] font-semibold tracking-[0.14em] uppercase">
             {(theme.product_line || PRODUCT_LINE)}
             {(theme.product_line || PRODUCT_LINE) && (theme.country_line || COUNTRY_LINE) ? ' · ' : ''}
             {theme.country_line || COUNTRY_LINE}
@@ -485,6 +523,13 @@ Basic includes core records and finance. Premium unlocks Messages, Attendance, T
                     required
                   />
                   <p className="text-xs text-slate-500">Valid code required. 1‑month free trial starts after registration.</p>
+                  <input
+                    className={`${input} uppercase`}
+                    placeholder="Partner code (optional) e.g. PTR-7K3M9Q"
+                    value={partnerCode}
+                    onChange={(e) => setPartnerCode(e.target.value.toUpperCase())}
+                  />
+                  <p className="text-xs text-slate-500">Were you referred by a ShuleMoja partner/agent? Enter their code here — optional.</p>
                   </>
                 ) : (
                   <>

@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../supabaseClient'
+import { isOnline, enqueue } from '../../lib/offline'
+import { toast } from '../ui'
 import { Card, Scroll, Alert, NeedTerm, PageTitle, input, btn, btnGreen, th, td } from '../ui'
 
 function gradeFor(pct, bands) {
@@ -43,10 +45,10 @@ export default function Exams({ school, user, term }) {
     }
     setLoading(true)
     const [{ data: ex }, { data: gr }, { data: su }, { data: sc }] = await Promise.all([
-      supabase.from('exams').select('*').eq('school_id', school.id).eq('term_id', term.id).order('exam_date', { ascending: false }),
-      supabase.from('grades').select('*').eq('school_id', school.id).order('grade_name'),
-      supabase.from('subjects').select('*').eq('school_id', school.id).order('subject_name'),
-      supabase.from('grade_scales').select('id').eq('school_id', school.id).eq('is_active', true).maybeSingle(),
+      supabase.from('exams').select('*').eq('school_id', school?.id).eq('term_id', term.id).order('exam_date', { ascending: false }),
+      supabase.from('grades').select('*').eq('school_id', school?.id).order('grade_name'),
+      supabase.from('subjects').select('*').eq('school_id', school?.id).order('subject_name'),
+      supabase.from('grade_scales').select('id').eq('school_id', school?.id).eq('is_active', true).maybeSingle(),
     ])
     setExams(ex || [])
     setGrades(gr || [])
@@ -56,7 +58,7 @@ export default function Exams({ school, user, term }) {
       setBands(b || [])
     } else setBands([])
     setLoading(false)
-  }, [school.id, term])
+  }, [school?.id, term])
 
   useEffect(() => {
     loadBase()
@@ -93,14 +95,56 @@ export default function Exams({ school, user, term }) {
   const createExam = async (e) => {
     e.preventDefault()
     setError('')
-    const { error } = await supabase
+    setInfo('')
+    if (!term?.id) return setError('Set a current term in School Setup first.')
+    const name = (newExamName || '').trim()
+    if (!name) return setError('Enter an exam name (e.g. CAT 1).')
+    if (!canManageExams) return setError('You do not have permission to create exams.')
+    const { data, error } = await supabase
       .from('exams')
-      .insert([{ school_id: school.id, term_id: term.id, exam_name: newExamName, exam_date: newExamDate || null }])
+      .insert([{ school_id: school?.id, term_id: term.id, exam_name: name, exam_date: newExamDate || null }])
+      .select('id')
+      .maybeSingle()
     if (error) return setError(error.message)
     setNewExamName('')
     setNewExamDate('')
     setShowExamForm(false)
-    loadBase()
+    setInfo(`Exam "${name}" created.`)
+    if (data?.id) setSelectedExam(data.id)
+    await loadBase()
+  }
+
+  const deleteExam = async () => {
+    if (!canManageExams) return setError('You do not have permission to delete exams.')
+    if (!selectedExam) return
+    const name = exams.find((e) => e.id === selectedExam)?.exam_name || 'this exam'
+    if (!confirm(`Delete exam "${name}" and all its marks? This cannot be undone.`)) return
+    setError('')
+    setInfo('')
+    // marks first
+    await supabase.from('exam_results').delete().eq('exam_id', selectedExam).eq('school_id', school?.id)
+    const { error } = await supabase.from('exams').delete().eq('id', selectedExam).eq('school_id', school?.id)
+    if (error) return setError(error.message + ' — exam delete may be blocked by RLS.')
+    setSelectedExam('')
+    setMarks({})
+    setInfo('Exam deleted.')
+    await loadBase()
+  }
+
+  const clearSubjectMarks = async () => {
+    if (!canManageExams) return setError('You do not have permission to clear marks.')
+    if (!selectedExam || !selectedSubject) return
+    if (!confirm('Clear all marks for this subject in the selected exam?')) return
+    setError('')
+    const { error } = await supabase
+      .from('exam_results')
+      .delete()
+      .eq('exam_id', selectedExam)
+      .eq('subject_id', selectedSubject)
+      .eq('school_id', school?.id)
+    if (error) return setError(error.message)
+    setMarks({})
+    setInfo('Subject marks cleared.')
   }
 
   const saveMarks = async () => {
@@ -112,7 +156,7 @@ export default function Exams({ school, user, term }) {
       .map((s) => {
         const obtained = Math.max(0, Math.min(100, Number(marks[s.id])))
         return {
-          school_id: school.id,
+          school_id: school?.id,
           exam_id: selectedExam,
           student_id: s.id,
           subject_id: selectedSubject,
@@ -125,6 +169,13 @@ export default function Exams({ school, user, term }) {
     if (rows.length === 0) {
       setSaving(false)
       return setError('Enter at least one mark before saving.')
+    }
+    if (!isOnline()) {
+      enqueue('exam_results_upsert', { rows })
+      setSaving(false)
+      setInfo(`Saved ${rows.length} mark(s) offline — will sync when online.`)
+      try { toast('Marks saved offline — will sync', 'ok') } catch (_) {}
+      return
     }
     const { error } = await supabase
       .from('exam_results')
@@ -141,7 +192,7 @@ export default function Exams({ school, user, term }) {
       const { data: assigns } = await supabase
         .from('grade_basket_assignments')
         .select('basket_id')
-        .eq('school_id', school.id)
+        .eq('school_id', school?.id)
         .eq('grade_id', selectedGrade)
         .eq('term_id', term.id)
       const basketIds = (assigns || []).map((a) => a.basket_id)
@@ -149,7 +200,7 @@ export default function Exams({ school, user, term }) {
         const { data: items } = await supabase
           .from('subject_basket_items')
           .select('subjects(*)')
-          .eq('school_id', school.id)
+          .eq('school_id', school?.id)
           .in('basket_id', basketIds)
         const seen = new Set()
         const list = []
@@ -164,13 +215,13 @@ export default function Exams({ school, user, term }) {
       const { data: alloc } = await supabase
         .from('subject_allocations')
         .select('subjects(*)')
-        .eq('school_id', school.id)
+        .eq('school_id', school?.id)
         .eq('grade_id', selectedGrade)
         .eq('term_id', term.id)
       const fromAlloc = (alloc || []).map((a) => a.subjects).filter(Boolean)
       if (fromAlloc.length) setSubjects(fromAlloc)
     })()
-  }, [selectedGrade, term, school.id])
+  }, [selectedGrade, term, school?.id])
 
   if (!term) {
     return (
@@ -195,6 +246,14 @@ export default function Exams({ school, user, term }) {
         Examinations
       </PageTitle>
 
+      {!canManageExams && (
+        <Alert kind="ok">Only Principal, Deputy, Senior Teacher, Teacher or Secretary can create exams.</Alert>
+      )}
+      {canManageExams && !showExamForm && (
+        <button type="button" onClick={() => setShowExamForm(true)} className={`${btnGreen} w-full sm:w-auto`}>
+          + Create exam
+        </button>
+      )}
       {showExamForm && (
         <Card title="Create new exam">
           <form onSubmit={createExam} className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -309,9 +368,29 @@ export default function Exams({ school, user, term }) {
                   </Scroll>
                   <Alert>{error}</Alert>
                   <Alert kind="ok">{info}</Alert>
-                  <button onClick={saveMarks} disabled={saving} className={`${btn} mt-2`}>
-                    {saving ? 'Saving...' : 'Save marks'}
-                  </button>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    <button type="button" onClick={saveMarks} disabled={saving} className={btn}>
+                      {saving ? 'Saving...' : 'Save marks'}
+                    </button>
+                    {canManageExams && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={clearSubjectMarks}
+                          className="px-4 py-2 rounded-xl border border-amber-300 text-amber-900 text-sm font-bold bg-amber-50"
+                        >
+                          Clear subject marks
+                        </button>
+                        <button
+                          type="button"
+                          onClick={deleteExam}
+                          className="px-4 py-2 rounded-xl border border-red-300 text-red-700 text-sm font-bold bg-white"
+                        >
+                          Delete exam
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </>
               )}
             </>

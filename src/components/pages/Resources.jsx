@@ -24,12 +24,12 @@ export default function Resources({ school, user }) {
 
   const fetchResources = useCallback(async () => {
     setLoading(true)
-    let q = supabase.from('school_resources').select('*').eq('school_id', school.id).order('resource_name')
+    let q = supabase.from('school_resources').select('*').eq('school_id', school?.id).order('resource_name')
     if (filter !== 'all') q = q.eq('resource_type', filter)
     const { data } = await q
     setResources(data || [])
     setLoading(false)
-  }, [school.id, filter])
+  }, [school?.id, filter])
 
   useEffect(() => {
     fetchResources()
@@ -45,7 +45,7 @@ export default function Resources({ school, user }) {
 
     if (file) {
       const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-      const path = `${school.id}/${Date.now()}_${safe}`
+      const path = `${school?.id}/${Date.now()}_${safe}`
       const { error: upErr } = await supabase.storage.from(BUCKET).upload(path, file, {
         upsert: false,
         contentType: file.type || 'application/octet-stream',
@@ -66,7 +66,7 @@ export default function Resources({ school, user }) {
 
     const { error } = await supabase.from('school_resources').insert([
       {
-        school_id: school.id,
+        school_id: school?.id,
         resource_name: name,
         resource_type: type,
         quantity: Number(qty),
@@ -91,19 +91,26 @@ export default function Resources({ school, user }) {
   const conditionColor = (c) =>
     c === 'Good' ? 'bg-green-100 text-green-800' : c === 'Fair' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'
 
+  const remove = async (id) => {
+    if (!canEdit || !confirm('Delete this resource?')) return
+    const { error } = await supabase.from('school_resources').delete().eq('id', id)
+    if (error) setError?.(error.message)
+    else load?.()
+  }
+
   return (
     <div className="space-y-6">
       <PageTitle
+        title="Resources"
+        subtitle="Books, equipment, curriculum files"
         right={
           canEdit && (
-            <button onClick={() => setShowForm((v) => !v)} className={btnGreen}>
-              {showForm ? 'Cancel' : '+ Add resource'}
+            <button type="button" onClick={() => setShowForm((v) => !v)} className={btnGreen}>
+              {showForm ? 'Cancel' : '+ Add'}
             </button>
           )
         }
-      >
-        School Resources
-      </PageTitle>
+      />
 
       {showForm && canEdit && (
         <Card title="Add resource / upload file">
@@ -125,7 +132,7 @@ export default function Resources({ school, user }) {
             <div className="md:col-span-2">
               <label className="text-sm text-gray-600">File (PDF, image, doc — optional)</label>
               <input type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,application/pdf" className={input} onChange={(e) => setFile(e.target.files?.[0] || null)} />
-              <p className="text-xs text-slate-500">Gallery photos, camera images, or documents</p>
+              
             </div>
             <div className="md:col-span-2">
               <Alert>{error}</Alert>
@@ -162,6 +169,7 @@ export default function Resources({ school, user }) {
                   <th className={th}>Year</th>
                   <th className={th}>Condition</th>
                   <th className={th}>File</th>
+                  {canEdit && <th className={th}></th>}
                 </tr>
               </thead>
               <tbody>
@@ -183,6 +191,11 @@ export default function Resources({ school, user }) {
                         '—'
                       )}
                     </td>
+                    {canEdit && (
+                      <td className={td}>
+                        <button type="button" className="text-red-600 text-xs font-bold" onClick={() => remove(r.id)}>Delete</button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

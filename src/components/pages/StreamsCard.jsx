@@ -11,12 +11,12 @@ export default function StreamsCard({ school }) {
 
   const load = useCallback(async () => {
     const [{ data: s }, { data: g }] = await Promise.all([
-      supabase.from('streams').select('*, grades(grade_name)').eq('school_id', school.id).order('stream_name'),
-      supabase.from('grades').select('id, grade_name').eq('school_id', school.id).order('grade_name'),
+      supabase.from('streams').select('*, grades(grade_name)').eq('school_id', school?.id).order('stream_name'),
+      supabase.from('grades').select('id, grade_name').eq('school_id', school?.id).order('grade_name'),
     ])
     setStreams(s || [])
     setGrades(g || [])
-  }, [school.id])
+  }, [school?.id])
 
   useEffect(() => {
     load()
@@ -27,7 +27,7 @@ export default function StreamsCard({ school }) {
     setError('')
     if (!name.trim()) return
     const { error: err } = await supabase.from('streams').insert([
-      { school_id: school.id, stream_name: name.trim(), grade_id: gradeId || null },
+      { school_id: school?.id, stream_name: name.trim(), grade_id: gradeId || null },
     ])
     if (err) {
       setError(err.message + (err.message.includes('streams') ? ' — run 22_v37_streams_status.sql' : ''))
