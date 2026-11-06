@@ -170,9 +170,45 @@ export default function Attendance({ school, term, user }) {
     )
   }
 
+  const downloadClassAttendance = () => {
+    const planOk = ent.planId === 'premium' || ent.planId === 'pro' || ent.planId === 'trial' || !!ent.attendance
+    if (!planOk) {
+      setError('Download class attendance is available on Premium and Pro.')
+      return
+    }
+    if (!gradeId || !students.length) {
+      setError('Select a class with learners first.')
+      return
+    }
+    const gname = grades.find((g) => g.id === gradeId)?.grade_name || 'class'
+    const header = ['admission_no', 'first_name', 'last_name', 'status', 'parent_phone', 'date']
+    const lines = [header.join(',')]
+    students.forEach((s) => {
+      const st = marks[s.id] || ''
+      lines.push(
+        [s.admission_no, s.first_name, s.last_name, st, s.parent_phone || '', date]
+          .map((x) => `"${String(x).replace(/"/g, '""')}"`)
+          .join(','),
+      )
+    })
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `attendance_${gname}_${date}.csv`
+    a.click()
+    URL.revokeObjectURL(a.href)
+    setInfo('Attendance CSV downloaded.')
+  }
+
+
   return (
     <div className="space-y-4">
-      <PageTitle title="Attendance" subtitle="Mark class, WhatsApp absentees, clear a day if needed." />
+      <PageTitle title="Attendance" subtitle="Mark class, WhatsApp absentees, download register, clear a day if needed." />
+      <div className="flex flex-wrap gap-2">
+        <button type="button" className="px-3 py-1.5 rounded-lg text-xs font-black border bg-sky-600 text-white border-sky-500 hover:bg-sky-500 active:bg-amber-400 active:text-amber-950 active:border-amber-300" onClick={downloadClassAttendance}>
+          Download class CSV
+        </button>
+      </div>
       <Card>
         <div className="grid sm:grid-cols-2 gap-3">
           <label className="text-xs font-bold text-slate-600">

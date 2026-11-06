@@ -1,32 +1,26 @@
+import { canExportReports } from '../../lib/plans'
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../supabaseClient'
 import { Card, Scroll, Alert, NeedTerm, PageTitle, input, th, td, btn, btnGreen } from '../ui'
-import { planEntitlements } from '../../lib/plans'
 import { letterFromMarks, loadActiveBands } from '../../lib/gradeScale'
+import { openPrintDocument } from '../../lib/docHeader'
 
-function openPrintWindow(title, bodyHtml, watermark) {
-  const w = window.open('about:blank', '_blank')
-  if (!w) {
-    alert('Pop-up blocked. Allow pop-ups for this site to print/download reports.')
-    return
-  }
-  w.document.write(`<!DOCTYPE html><html><head><title>${title}</title>
-<style>
-  body{font-family:system-ui,Segoe UI,sans-serif;color:#0f172a;padding:24px;max-width:900px;margin:0 auto}
-  h1{font-size:1.25rem;margin:0 0 4px} h2{font-size:1rem;margin:0 0 12px;color:#334155}
-  table{width:100%;border-collapse:collapse;font-size:12px}
-  th,td{border:1px solid #cbd5e1;padding:6px 8px;text-align:left}
-  th{background:#f1f5f9}
-  .avg{font-weight:800}
-  .wm{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:.08;font-size:64px;font-weight:900;transform:rotate(-24deg)}
-  @media print{body{padding:12px} .no-print{display:none}}
-</style></head><body>
-${watermark ? '<div class="wm">ShuleMoja</div>' : ''}
-${bodyHtml}
-<p class="no-print" style="margin-top:16px"><button onclick="window.print()">Print / Save PDF</button></p>
-<script>setTimeout(function(){try{window.print()}catch(e){}},400)</script>
-</body></html>`)
-  w.document.close()
+function cbcBand(pct) {
+  const n = Number(pct)
+  if (Number.isNaN(n)) return '—'
+  if (n >= 80) return 'EE (Exceeding Expectation)'
+  if (n >= 65) return 'ME (Meeting Expectation)'
+  if (n >= 50) return 'AE (Approaching Expectation)'
+  return 'BE (Below Expectation)'
+}
+
+function openPrintWindow(school, title, bodyHtml) {
+  const ok = openPrintDocument({
+    school,
+    title,
+    bodyHtml: `${bodyHtml}<p style="font-size:11px;margin-top:8px"><strong>CBC scale:</strong> EE Exceeding · ME Meeting · AE Approaching · BE Below Expectation</p><p class="no-print" style="margin-top:16px"><button onclick="window.print()">Print / Save PDF</button></p>`,
+  })
+  if (!ok) alert('Pop-up blocked. Allow pop-ups for this site to print/download reports.')
 }
 
 export default function ReportCards({ school, term }) {
@@ -41,8 +35,6 @@ export default function ReportCards({ school, term }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [examTrends, setExamTrends] = useState([]) // {name, avg}
-  const ent = planEntitlements(school)
-  const watermark = !!ent.reportWatermark
 
   useEffect(() => {
     ;(async () => {
@@ -237,14 +229,16 @@ export default function ReportCards({ school, term }) {
       })
       .join('')
     openPrintWindow(
+      school,
       `Class report ${gradeName}`,
-      `<h1>${school?.school_name || ''}</h1><h2>${header}</h2><p>Scale: ${scaleName}</p>
-      <table><thead><tr><th>#</th><th>Adm</th><th>Name</th>${head}<th>Avg</th></tr></thead><tbody>${body}</tbody></table>`,
-      watermark
+      `<h2 style="text-align:center">${header}</h2><p style="text-align:center">Scale: ${scaleName}</p>
+      <table><thead><tr><th>#</th><th>Adm</th><th>Name</th>${head}<th>Avg</th></tr></thead><tbody>${body}</tbody></table>`
     )
   }
 
   const printStudent = (r) => {
+    if (!canExportReports(school)) { alert("PDF report cards are available on Premium and Pro."); return }
+
     const rowsHtml = subjects
       .map((s) => {
         const cell = r.subjects[s]
@@ -252,14 +246,13 @@ export default function ReportCards({ school, term }) {
       })
       .join('')
     openPrintWindow(
+      school,
       `Report ${r.student.first_name} ${r.student.last_name}`,
-      `<h1>${school?.school_name || ''}</h1>
-      <h2>${r.student.first_name} ${r.student.last_name} · Adm ${r.student.admission_no || '—'}</h2>
-      <p>${header}<br/>Scale: ${scaleName}</p>
+      `<h2 style="text-align:center">${r.student.first_name} ${r.student.last_name} · Adm ${r.student.admission_no || '—'}</h2>
+      <p style="text-align:center">${header}<br/>Scale: ${scaleName}</p>
       <table><thead><tr><th>Subject</th><th>Marks</th><th>Grade</th></tr></thead><tbody>${rowsHtml}
       <tr><td colspan="2"><strong>Average</strong></td><td class="avg">${r.average} (${r.avgLetter})</td></tr>
-      </tbody></table>`,
-      watermark
+      </tbody></table>`
     )
   }
 
@@ -267,7 +260,7 @@ export default function ReportCards({ school, term }) {
     <div className="space-y-4">
       <PageTitle
         title="Report cards"
-        subtitle={`Grading scale: ${scaleName}. Seed CBC (BE–EE) under Setup → Grading if empty.`}
+        subtitle={`Grading scale: ${scaleName}. CBC bands: EE Exceeding · ME Meeting · AE Approaching · BE Below. Seed scale under Setup → Grading if empty.`}
       />
       {!term && <NeedTerm />}
       <Card>
@@ -346,11 +339,6 @@ export default function ReportCards({ school, term }) {
           </div>
         )}
 
-        {watermark && (
-          <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5 mb-2">
-            Basic plan: printed reports include a light ShuleMoja watermark. Upgrade to Premium for clean branding.
-          </p>
-        )}
         <Alert kind="error">{error}</Alert>
       </Card>
       <Card className="!p-0 overflow-x-auto">

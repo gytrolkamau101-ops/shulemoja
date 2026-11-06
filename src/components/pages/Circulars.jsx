@@ -3,6 +3,7 @@ import { supabase } from '../../supabaseClient'
 import { Card, Scroll, Alert, PageTitle, input, btn, btnGreen, btnDanger, th, td } from '../ui'
 import { canEditData } from '../../lib/roles'
 import { isPremiumOrPro } from '../../lib/plans'
+import { openPrintDocument } from '../../lib/docHeader'
 
 const TEMPLATES = [
   {
@@ -111,13 +112,12 @@ export default function Circulars({ school, user, term }) {
   }
 
   const printBody = (r) => {
-    const w = window.open('', '_blank')
-    if (!w) return alert('Allow pop-ups')
-    w.document.write(`<!DOCTYPE html><html><head><title>${r.title}</title>
-      <style>body{font-family:system-ui;margin:24px;white-space:pre-wrap}</style></head>
-      <body><h1>${r.title}</h1><p>${(r.body || '').replace(/</g, '&lt;')}</p>
-      <script>onload=()=>print()<\/script></body></html>`)
-    w.document.close()
+    const ok = openPrintDocument({
+      school,
+      title: r.title,
+      bodyHtml: `<h2 style="text-align:center">${r.title}</h2><p style="white-space:pre-wrap">${(r.body || '').replace(/</g, '&lt;')}</p>`,
+    })
+    if (!ok) alert('Allow pop-ups')
   }
 
   return (

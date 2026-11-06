@@ -160,7 +160,7 @@ export default function PartnersTab({
 
       <div className="rounded-2xl border border-slate-800 bg-slate-900/80 overflow-hidden">
         <div className="p-4 font-bold border-b border-slate-800 text-white">Partners ({partners.length})</div>
-        <Scroll>
+        <Scroll dark>
           <table className="w-full sa-table">
             <thead className="bg-slate-950">
               <tr>
@@ -235,7 +235,7 @@ export default function PartnersTab({
             <option value="all" className="bg-slate-900 text-white">All</option>
           </select>
         </div>
-        <Scroll>
+        <Scroll dark>
           <table className="w-full sa-table">
             <thead className="bg-slate-950">
               <tr>

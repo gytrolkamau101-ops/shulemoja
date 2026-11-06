@@ -54,3 +54,14 @@ export async function promptInstall() {
   const choice = await e.userChoice
   return choice?.outcome === 'accepted'
 }
+
+export function getInstallHelp() {
+  if (typeof navigator === 'undefined') return 'Open in Chrome or Safari to install.'
+  if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
+    return 'iPhone/iPad: tap Share → Add to Home Screen.'
+  }
+  if (/Android/i.test(navigator.userAgent)) {
+    return 'Android Chrome: menu (⋮) → Install app or Add to Home screen. Stay on HTTPS or localhost.'
+  }
+  return 'Desktop Chrome/Edge: install icon in the address bar, or menu → Install app.'
+}

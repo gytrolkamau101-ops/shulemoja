@@ -176,7 +176,7 @@ export default function ImportCenter({ school, term, user }) {
       <PageTitle title="Import centre" subtitle="Templates, CSV upload, and full school backup export" />
       <Card title="Full school backup (export)">
         <p className="text-sm text-slate-700 mb-3">Download students, fees, exams, attendance, staff and more as one JSON file for safekeeping or future re-import.</p>
-        <button type="button" className={btnGreen} disabled={busy} onClick={exportBackup}>
+        <button type="button" className="px-3 py-1.5 rounded-lg text-xs font-black border bg-sky-600 text-white border-sky-500 hover:bg-sky-500" disabled={busy} onClick={exportBackup}>
           {busy ? 'Exporting…' : 'Download full backup (JSON)'}
         </button>
       </Card>

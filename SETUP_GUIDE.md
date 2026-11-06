@@ -11,7 +11,7 @@ This is a working rebuild: real security rules, a working sign-up/approval flow,
 
 ## 1. Create your Supabase project
 
-1. Go to **supabase.com** → sign up (free) → **New project**, name it `shulekit`.
+1. Go to **supabase.com** → sign up (free) → **New project**, name it `shulemoja`.
 2. Wait for it to finish setting up (a minute or two).
 3. Open **SQL Editor** → **New query**.
 4. Open `01_schema.sql` from this package, copy *all* of it, paste into the editor, and click **Run**.
@@ -31,7 +31,7 @@ Supabase normally requires people to click a confirmation email before logging i
 ## 3. Set up the project on your computer (or ask someone with a laptop to do this part once)
 
 ```bash
-# unzip ShuleMoja_Starter.zip first, then inside the shulekit_v7 folder:
+# unzip ShuleMoja_Starter.zip first, then inside the shulemoja_v7 folder:
 npm install
 cp .env.example .env
 ```

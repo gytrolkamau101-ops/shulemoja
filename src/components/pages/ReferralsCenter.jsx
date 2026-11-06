@@ -53,6 +53,19 @@ export default function ReferralsCenter({ school, lang = 'en' }) {
         <p className="text-amber-50/90 text-sm mt-1">Track codes, invites, and free Premium progress.</p>
       </div>
 
+      
+      <Card title="How invite & earn works (your school)">
+        <ol className="text-sm text-slate-700 space-y-2 list-decimal pl-5">
+          <li><strong>Your code</strong> — Share the code above with another school’s Principal when they register a <em>new</em> school on ShuleMoja.</li>
+          <li><strong>They register</strong> — On the register form they paste your code in the single Invite / referral field. The system records that your school invited them.</li>
+          <li><strong>Credits</strong> — When that school becomes a <em>paying</em> subscriber, you earn credits (typically 100 per paying school).</li>
+          <li><strong>Free Premium</strong> — Collect enough credits (e.g. 300) to unlock a free Premium term for your school (subject to the limits shown on this page, e.g. max 2).</li>
+          <li><strong>Track progress</strong> — Credits, invites, and free Premium grants update on this page. Signup activity lists schools that used your code.</li>
+          <li><strong>Not the same as school code</strong> — Your school code is for staff/parents joining <em>your</em> school. This invite code is only for referring <em>other schools</em> onto the platform.</li>
+        </ol>
+        <p className="text-xs text-slate-500 mt-3">Platform fees only — school fee money always goes to each school’s own Paybill/bank, never through this invite programme.</p>
+      </Card>
+
       <Card title="Your code">
         <div className="flex flex-wrap items-center gap-2">
           <code className="text-xl font-black tracking-widest bg-slate-900 text-amber-300 px-4 py-2 rounded-xl border border-amber-500/30">
@@ -60,10 +73,10 @@ export default function ReferralsCenter({ school, lang = 'en' }) {
           </code>
           {rp.code && (
             <>
-              <button type="button" className="text-sm font-bold text-blue-700" onClick={() => navigator.clipboard?.writeText(rp.code)}>
+              <button type="button" className="text-sm font-bold text-sky-700 hover:text-amber-600 active:text-amber-700 px-2 py-1 rounded-lg bg-sky-50 border border-sky-200 active:bg-amber-400 active:border-amber-300 active:text-amber-950" onClick={() => navigator.clipboard?.writeText(rp.code)}>
                 {t(lang, 'copy')}
               </button>
-              <a className="text-sm font-bold text-emerald-700" href={whatsappShareUrl(rp.code, school?.school_name)} target="_blank" rel="noreferrer">
+              <a className="text-sm font-bold text-sky-700 hover:text-amber-600 active:text-amber-700 px-2 py-1 rounded-lg bg-sky-50 border border-sky-200 active:bg-amber-400 active:border-amber-300 active:text-amber-950" href={whatsappShareUrl(rp.code, school?.school_name)} target="_blank" rel="noreferrer">
                 WhatsApp
               </a>
             </>

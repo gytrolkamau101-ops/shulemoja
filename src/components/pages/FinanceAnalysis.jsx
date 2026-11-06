@@ -28,14 +28,11 @@ export default function FinanceAnalysis({ school, term }) {
         if (mode === 'term' && term?.id) {
           payQ = payQ.eq('term_id', term.id)
           expQ = expQ.eq('term_id', term.id)
-        } else if (mode === 'year') {
-          const y = term?.year || new Date().getFullYear()
-          payQ = payQ.gte('payment_date', `${y}-01-01`).lte('payment_date', `${y}-12-31`)
-          expQ = expQ.gte('expense_date', `${y}-01-01`).lte('expense_date', `${y}-12-31`)
         }
-        const [{ data: p }, { data: e }, { data: s }] = await Promise.all([
-          payQ.limit(2000),
-          expQ.limit(2000),
+        // year mode: fetch school-wide then filter client-side (avoids null date / RLS quirks)
+        const [{ data: pRaw }, { data: eRaw }, { data: s }] = await Promise.all([
+          payQ.limit(5000),
+          expQ.limit(5000),
           supabase
             .from('students')
             .select('id, first_name, last_name, admission_no')
@@ -44,8 +41,16 @@ export default function FinanceAnalysis({ school, term }) {
             .order('first_name')
             .limit(500),
         ])
-        setPayments(p || [])
-        setExpenses(e || [])
+        let p = pRaw || []
+        let e = eRaw || []
+        if (mode === 'year') {
+          const y = String(term?.year || new Date().getFullYear())
+          const inYear = (d) => d && String(d).slice(0, 4) === y
+          p = p.filter((row) => inYear(row.payment_date))
+          e = e.filter((row) => inYear(row.expense_date))
+        }
+        setPayments(p)
+        setExpenses(e)
         setStudents(s || [])
       } catch (err) {
         setError(err.message || String(err))

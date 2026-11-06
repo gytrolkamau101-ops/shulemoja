@@ -415,13 +415,7 @@ html[data-theme="standard"] body {
   color: #0f172a;
 }
 
-.sm-app-shell {
-  background:
-    radial-gradient(ellipse 90% 60% at 0% 0%, rgba(37, 99, 235, 0.12), transparent 55%),
-    radial-gradient(ellipse 70% 50% at 100% 0%, rgba(13, 148, 136, 0.1), transparent 50%),
-    linear-gradient(180deg, #e8eef7 0%, #dbe4f3 40%, #eef2f7 100%);
-  min-height: 100vh;
-}
+
 
 .sm-dash-rich {
   max-width: 1100px;
@@ -490,4 +484,84 @@ html.theme-standard .sk-card {
 }
 .sa-table tbody tr:hover td {
   background: #1e293b !important;
+}
+
+/* Compact action chips: blue idle, gold active */
+.sm-action-btn {
+  background: #0284c7;
+  color: #fff;
+  font-weight: 700;
+  border-radius: 0.5rem;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.7rem;
+  border: 1px solid #0ea5e9;
+}
+.sm-action-btn:hover { background: #0ea5e9; }
+.sm-action-btn:active, .sm-action-btn.is-on {
+  background: #fbbf24;
+  color: #78350f;
+  border-color: #f59e0b;
+}
+
+/* ===== Desk shell colour themes (no photo backgrounds) ===== */
+.sm-app-shell {
+  min-height: 100vh;
+  background:
+    radial-gradient(ellipse 90% 60% at 0% 0%, rgba(37, 99, 235, 0.14), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 100% 0%, rgba(14, 165, 233, 0.12), transparent 50%),
+    linear-gradient(180deg, #e8eef7 0%, #dbe4f3 40%, #eef2f7 100%);
+}
+
+html[data-shell="sky"] .sm-app-shell,
+html:not([data-shell]) .sm-app-shell {
+  background:
+    radial-gradient(ellipse 90% 55% at 10% 0%, rgba(56, 189, 248, 0.18), transparent 55%),
+    radial-gradient(ellipse 70% 45% at 100% 10%, rgba(37, 99, 235, 0.12), transparent 50%),
+    linear-gradient(165deg, #e0f2fe 0%, #eff6ff 45%, #f8fafc 100%);
+}
+
+html[data-shell="indigo"] .sm-app-shell {
+  background:
+    radial-gradient(ellipse 80% 50% at 0% 0%, rgba(99, 102, 241, 0.2), transparent 55%),
+    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(79, 70, 229, 0.12), transparent 50%),
+    linear-gradient(165deg, #e0e7ff 0%, #eef2ff 50%, #f8fafc 100%);
+}
+
+html[data-shell="teal"] .sm-app-shell {
+  background:
+    radial-gradient(ellipse 80% 50% at 0% 0%, rgba(20, 184, 166, 0.18), transparent 55%),
+    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(13, 148, 136, 0.12), transparent 50%),
+    linear-gradient(165deg, #ccfbf1 0%, #f0fdfa 50%, #f8fafc 100%);
+}
+
+html[data-shell="slate"] .sm-app-shell {
+  background:
+    radial-gradient(ellipse 80% 50% at 0% 0%, rgba(100, 116, 139, 0.16), transparent 55%),
+    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(71, 85, 105, 0.1), transparent 50%),
+    linear-gradient(165deg, #e2e8f0 0%, #f1f5f9 50%, #f8fafc 100%);
+}
+
+html[data-shell="sunrise"] .sm-app-shell {
+  background:
+    radial-gradient(ellipse 80% 50% at 0% 0%, rgba(251, 191, 36, 0.2), transparent 55%),
+    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(249, 115, 22, 0.1), transparent 50%),
+    linear-gradient(165deg, #fef3c7 0%, #fff7ed 45%, #f8fafc 100%);
+}
+
+/* Setup theme picker swatches */
+.shell-preview { border: 1px solid rgba(15,23,42,0.08); }
+.shell-preview-sky {
+  background: linear-gradient(135deg, #bae6fd, #dbeafe 50%, #f0f9ff);
+}
+.shell-preview-indigo {
+  background: linear-gradient(135deg, #c7d2fe, #e0e7ff 50%, #eef2ff);
+}
+.shell-preview-teal {
+  background: linear-gradient(135deg, #99f6e4, #ccfbf1 50%, #f0fdfa);
+}
+.shell-preview-slate {
+  background: linear-gradient(135deg, #cbd5e1, #e2e8f0 50%, #f1f5f9);
+}
+.shell-preview-sunrise {
+  background: linear-gradient(135deg, #fde68a, #fed7aa 50%, #ffedd5);
 }

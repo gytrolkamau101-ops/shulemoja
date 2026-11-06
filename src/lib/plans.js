@@ -29,11 +29,10 @@ export const FREE_PAGES = [
   'students',
   'admissions',
   'setup',
-  'support',
 ]
 
 /** Setup tabs allowed on free (read-only enforced in UI where possible). */
-export const FREE_SETUP_TABS = ['School identity', 'Terms', 'Grades & Subjects']
+export const FREE_SETUP_TABS = ['School identity', 'Terms', 'Grades & Subjects', 'Profile & language']
 
 const CORE = {
   messages: false,
@@ -60,6 +59,7 @@ const CORE = {
   reportWatermark: true,
   capitation: false,
   financeAnalysis: false,
+  library: false,
   /** Free: view students/admissions/setup subset only; no fee/exam writes intended */
   readOnly: false,
 }
@@ -77,6 +77,9 @@ const BASIC_SUITE = {
   ...CORE,
   feeHeads: true,
   capitation: true,
+  reportWatermark: true,
+  parentDownloads: false,
+  import: false,
   defaultCap: 200,
   staffCap: 25,
   parentCap: 150,
@@ -106,6 +109,7 @@ const PREMIUM_SUITE = {
 
 const PRO_SUITE = {
   ...PREMIUM_SUITE,
+  library: true,
   boarding: true,
   transport: true,
   bom: true,
@@ -117,7 +121,7 @@ const PRO_SUITE = {
 export const PLAN_FEATURES = {
   free: { ...FREE_TIER },
   /** Trial uses Basic capabilities for 30 days, then entitlements fall to free */
-  trial: { ...BASIC_SUITE, prioritySupport: false, defaultCap: 200, staffCap: 25, parentCap: 150 },
+  trial: { ...BASIC_SUITE, timetable: true, library: true, prioritySupport: false, defaultCap: 200, staffCap: 25, parentCap: 150 },
   basic: { ...BASIC_SUITE },
   premium: { ...PREMIUM_SUITE, defaultCap: 500, staffCap: 50, parentCap: 350 },
   pro: { ...PRO_SUITE, defaultCap: 1000, staffCap: 80, parentCap: 800 },
@@ -175,8 +179,11 @@ export function canAccessModule(school, moduleId) {
   if (e.planId === 'free' || e.readOnly) {
     return FREE_PAGES.includes(moduleId)
   }
-  // Pro-only
-  if (moduleId === 'library' || moduleId === 'finance-analysis') {
+  // Pro-only (trial unlocks library for evaluation)
+  if (moduleId === 'library') {
+    return isPro(school) || !!e.library || e.planId === 'trial' || e.planId === 'pro' || e.planId === 'custom'
+  }
+  if (moduleId === 'finance-analysis') {
     return isPro(school) || !!e.financeAnalysis || e.planId === 'pro' || e.planId === 'custom'
   }
   if (moduleId === 'capitation') return !!e.capitation && e.planId !== 'free' && !e.readOnly
@@ -186,7 +193,7 @@ export function canAccessModule(school, moduleId) {
     if (moduleId === 'messages') return !!e.messages
     if (moduleId === 'parent-notices') return !!(e.parentLetters || e.messages)
     if (moduleId === 'attendance') return !!e.attendance
-    if (moduleId === 'timetable') return !!e.timetable
+    if (moduleId === 'timetable') return !!e.timetable || e.planId === 'trial'
     if (moduleId === 'circulars') return !!e.circulars
     if (moduleId === 'import') return !!e.import
     if (moduleId === 'boarding') return !!e.boarding
@@ -206,6 +213,23 @@ export function isPro(school) {
   if (e.expired || e.planId === 'free') return false
   const id = e.planId || ''
   return id === 'pro' || id === 'custom' || !!e.financeAnalysis
+}
+
+/** CSV / PDF exports (class fees, balances, attendance lists, etc.) — Premium & Pro only. */
+export function canExportReports(school) {
+  const e = planEntitlements(school)
+  if (e.expired || e.planId === 'free' || e.planId === 'basic' || e.readOnly) return false
+  const id = e.planId || ''
+  // Premium & Pro only — Basic is view-only (no CSV/PDF download)
+  return id === 'premium' || id === 'pro' || id === 'custom' || id === 'yearly'
+}
+
+/** Detailed school finance (projects, in-kind depth, full analytics tabs) — Premium & Pro. Basic gets overview + simple capitation. */
+export function canDetailedSchoolFinance(school) {
+  const e = planEntitlements(school)
+  if (e.expired || e.planId === 'free' || e.readOnly) return false
+  // Premium, Pro, custom, trial evaluation of detailed finance
+  return isPremium(school) || isPro(school) || e.planId === 'trial' || e.planId === 'premium' || e.planId === 'pro'
 }
 
 /** Trial length for new schools (days). */

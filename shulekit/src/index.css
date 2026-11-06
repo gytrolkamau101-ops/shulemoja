@@ -1,0 +1,567 @@
+@import "tailwindcss";
+
+:root {
+  --sk-primary: #1d4ed8;
+  --sk-primary-dark: #1e3a8a;
+  --sk-accent: #06b6d4;
+  --sk-success: #059669;
+  --sk-danger: #dc2626;
+  --sk-surface: #f1f5f9;
+  --sk-text: #0f172a;
+  --sk-muted: #475569;
+  --sk-radius: 1rem;
+  font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, "Roboto", sans-serif;
+}
+
+html, body, #root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--sk-surface);
+  color: var(--sk-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Soft animated gradient mesh background */
+.sk-mesh {
+  background:
+    radial-gradient(ellipse 80% 60% at 10% 20%, rgba(59, 130, 246, 0.35), transparent 50%),
+    radial-gradient(ellipse 70% 50% at 90% 10%, rgba(6, 182, 212, 0.28), transparent 45%),
+    radial-gradient(ellipse 60% 50% at 50% 90%, rgba(99, 102, 241, 0.22), transparent 50%),
+    linear-gradient(160deg, #0f172a 0%, #1e3a8a 45%, #0e7490 100%);
+}
+
+.sk-mesh-light {
+  background:
+    radial-gradient(ellipse 70% 50% at 0% 0%, rgba(59, 130, 246, 0.12), transparent 50%),
+    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(6, 182, 212, 0.1), transparent 45%),
+    linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
+}
+
+.sk-glass {
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  box-shadow:
+    0 4px 6px -1px rgba(15, 23, 42, 0.06),
+    0 20px 40px -12px rgba(15, 23, 42, 0.15);
+  color: #0f172a;
+}
+
+.sk-card {
+  background: #fff;
+  border-radius: 1rem;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 8px 24px -8px rgba(15, 23, 42, 0.08);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+  color: #0f172a;
+}
+
+.sk-card:hover {
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08), 0 16px 32px -12px rgba(15, 23, 42, 0.1);
+}
+
+@keyframes sk-fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes sk-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes sk-scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes sk-slide-right {
+  from { transform: translateX(110%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes sk-spin {
+  to { transform: rotate(360deg); }
+}
+
+.sk-animate-in {
+  animation: sk-fade-up 0.4s ease-out both;
+}
+.sk-modal-in {
+  animation: sk-scale-in 0.22s ease-out both;
+}
+.sk-backdrop-in {
+  animation: sk-fade-in 0.2s ease-out both;
+}
+.sk-toast-in {
+  animation: sk-slide-right 0.3s ease-out both;
+}
+
+/* Spinners — light (on dark bg) vs dark (on light bg) */
+.sk-spinner {
+  display: inline-block;
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: sk-spin 0.7s linear infinite;
+  vertical-align: middle;
+}
+.sk-spinner-dark {
+  display: inline-block;
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 2px solid rgba(37, 99, 235, 0.22);
+  border-top-color: #2563eb;
+  border-radius: 50%;
+  animation: sk-spin 0.7s linear infinite;
+  vertical-align: middle;
+}
+
+/* Focus rings */
+input:focus, select:focus, textarea:focus, button:focus-visible {
+  outline: none;
+}
+input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 1px;
+}
+
+.sk-scroll::-webkit-scrollbar { height: 8px; width: 8px; }
+.sk-scroll::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 99px;
+}
+
+.sk-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+@keyframes sk-pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.45), 0 8px 20px rgba(234, 88, 12, 0.3); }
+  50% { box-shadow: 0 0 0 8px rgba(245, 158, 11, 0), 0 10px 24px rgba(234, 88, 12, 0.4); }
+}
+.sk-subscribe-pulse {
+  animation: sk-pulse-glow 2.2s ease-in-out infinite;
+}
+
+/* Sidebar "live" indicator dot — small pulsing badge on nav items with
+   real-time/alert-worthy content (messages, attendance, finance, support). */
+@keyframes sm-live-dot-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.55); opacity: 1; }
+  50% { box-shadow: 0 0 0 4px rgba(16, 185, 129, 0); opacity: 0.85; }
+}
+.sm-live-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  background: #34d399;
+  animation: sm-live-dot-pulse 1.8s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+/* Themes */
+html.theme-light, html[data-theme="light"] {
+  color-scheme: light;
+}
+html.theme-dark, html[data-theme="dark"] {
+  color-scheme: dark;
+}
+html.theme-dark body,
+html[data-theme="dark"] body {
+  background: #0b1220;
+  color: #e2e8f0;
+}
+html.theme-dark .sm-topbar,
+html[data-theme="dark"] .sm-topbar {
+  background: rgba(15, 23, 42, 0.95) !important;
+  border-color: rgba(51, 65, 85, 0.85) !important;
+}
+html.theme-dark .sm-topbar p,
+html[data-theme="dark"] .sm-topbar p {
+  color: #e2e8f0 !important;
+}
+html.theme-dark .sk-card,
+html[data-theme="dark"] .sk-card {
+  background: #1e293b;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+html.theme-dark .sk-card-title,
+html.theme-dark .sk-page-title,
+html[data-theme="dark"] .sk-card-title,
+html[data-theme="dark"] .sk-page-title {
+  color: #f8fafc !important;
+}
+html.theme-dark .sk-page-sub,
+html[data-theme="dark"] .sk-page-sub {
+  color: #94a3b8 !important;
+}
+html.theme-dark .sk-card-body,
+html[data-theme="dark"] .sk-card-body {
+  color: #e2e8f0;
+}
+html.theme-dark .sm-input,
+html[data-theme="dark"] .sm-input,
+html.theme-dark input:not([type="checkbox"]):not([type="radio"]),
+html.theme-dark select,
+html.theme-dark textarea {
+  background: #0f172a !important;
+  border-color: #475569 !important;
+  color: #f1f5f9 !important;
+}
+html.theme-dark .sm-label,
+html[data-theme="dark"] .sm-label,
+html.theme-dark label span {
+  color: #cbd5e1 !important;
+}
+html.theme-dark .sk-scroll {
+  border-color: #334155;
+  background: #0f172a;
+}
+html.theme-dim, html[data-theme="dim"] {
+  color-scheme: dark;
+}
+html.theme-dim body,
+html[data-theme="dim"] body {
+  background: #1a1f2e;
+  color: #e2e8f0;
+}
+html.theme-dim .sm-topbar,
+html[data-theme="dim"] .sm-topbar {
+  background: rgba(30, 41, 59, 0.95) !important;
+  border-color: rgba(71, 85, 105, 0.6) !important;
+}
+html.theme-dim .sk-card {
+  background: #243044;
+  border-color: #3d4f6f;
+  color: #e2e8f0;
+}
+
+/* Gold / premium buttons — gentler pulse */
+@keyframes sm-gold-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.35), 0 4px 14px rgba(245, 158, 11, 0.35); }
+  50% { box-shadow: 0 0 0 5px rgba(251, 191, 36, 0), 0 6px 18px rgba(245, 158, 11, 0.45); }
+}
+.sm-gold-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 0.9rem;
+  border-radius: 0.85rem;
+  font-weight: 800;
+  font-size: 0.8rem;
+  color: #422006;
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 45%, #d97706 100%);
+  border: 2px solid #fde68a;
+  animation: sm-gold-pulse 2.8s ease-in-out infinite;
+  text-decoration: none;
+  transition: transform 0.15s ease;
+  cursor: pointer;
+}
+.sm-gold-btn:hover { filter: brightness(1.05); }
+.sm-gold-btn:active { transform: scale(0.97); }
+.sm-gold-btn:disabled {
+  opacity: 0.55;
+  pointer-events: none;
+  animation: none;
+}
+.sm-gold-icon { font-size: 0.95rem; line-height: 1; }
+
+/* Quick action banners */
+.sm-qa-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.9rem 1rem;
+  border-radius: 0.9rem;
+  font-weight: 800;
+  font-size: 0.9rem;
+  color: #f8fafc;
+  background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
+  border: 2px solid #475569;
+  box-shadow: 0 4px 0 #020617, 0 8px 20px rgba(0,0,0,0.35);
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  cursor: pointer;
+}
+.sm-qa-banner:hover {
+  border-color: #fbbf24;
+  transform: translateY(-1px);
+  box-shadow: 0 5px 0 #020617, 0 12px 24px rgba(251, 191, 36, 0.15);
+}
+.sm-qa-banner:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 #020617, 0 4px 12px rgba(0,0,0,0.3);
+}
+.sm-animate {
+  animation: sk-fade-up 0.35s ease both;
+}
+
+/* 3D buttons */
+.sm-btn-3d {
+  border: 2px solid transparent;
+  box-shadow:
+    0 4px 0 rgba(15, 23, 42, 0.25),
+    0 8px 16px rgba(15, 23, 42, 0.15);
+  transform: translateY(0);
+  cursor: pointer;
+}
+.sm-btn-3d:hover { filter: brightness(1.04); }
+.sm-btn-3d:active {
+  transform: translateY(3px);
+  box-shadow:
+    0 1px 0 rgba(15, 23, 42, 0.25),
+    0 2px 6px rgba(15, 23, 42, 0.12);
+}
+.sm-btn-3d-blue {
+  background: linear-gradient(180deg, #3b82f6 0%, #1d4ed8 55%, #1e3a8a 100%);
+  border-color: #93c5fd;
+  color: #fff;
+}
+.sm-btn-3d-green {
+  background: linear-gradient(180deg, #34d399 0%, #059669 55%, #047857 100%);
+  border-color: #6ee7b7;
+  color: #fff;
+}
+.sm-btn-3d-red {
+  background: linear-gradient(180deg, #f87171 0%, #dc2626 55%, #b91c1c 100%);
+  border-color: #fca5a5;
+  color: #fff;
+}
+.sm-btn-3d-ghost {
+  background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
+  border-color: #94a3b8;
+  color: #0f172a;
+  box-shadow:
+    0 3px 0 #64748b,
+    0 6px 12px rgba(15, 23, 42, 0.08);
+}
+.sm-btn-3d-ghost:active {
+  box-shadow: 0 1px 0 #64748b, 0 2px 4px rgba(15, 23, 42, 0.08);
+}
+
+/* Labels always readable on light surfaces */
+label span,
+.sm-label {
+  color: #334155;
+  font-weight: 800;
+}
+
+/* Login glass form text must stay dark */
+.sk-glass label,
+.sk-glass .sm-label,
+.sk-glass p,
+.sk-glass h1,
+.sk-glass h2 {
+  color: #0f172a;
+}
+.sk-glass .text-slate-500,
+.sk-glass .text-slate-600 {
+  color: #475569 !important;
+}
+
+/* Dashboard shell */
+.sm-dash .sk-card-body {
+  min-width: 0;
+}
+
+/* Prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .sk-animate-in,
+  .sk-modal-in,
+  .sk-backdrop-in,
+  .sk-toast-in,
+  .sm-animate,
+  .sm-gold-btn,
+  .sk-subscribe-pulse,
+  .sk-spinner,
+  .sk-spinner-dark,
+  .sm-live-dot {
+    animation: none !important;
+  }
+  .sm-btn-3d:active,
+  .sm-qa-banner:active {
+    transform: none;
+  }
+}
+
+/* Tables: readable cells */
+table {
+  color: #0f172a;
+}
+html.theme-dark table {
+  color: #e2e8f0;
+}
+html.theme-dark thead th {
+  background: #334155 !important;
+  color: #f1f5f9 !important;
+  border-color: #475569 !important;
+}
+
+/* ===== v68 fixed standard theme (no dark/light switch) ===== */
+html.theme-standard,
+html[data-theme="standard"] {
+  color-scheme: light;
+}
+html.theme-standard body,
+html[data-theme="standard"] body {
+  background: #e8eef7;
+  color: #0f172a;
+}
+
+
+
+.sm-dash-rich {
+  max-width: 1100px;
+}
+
+.sm-topbar {
+  background: #ffffff !important;
+  border-color: #bfdbfe !important;
+}
+
+/* Remove dependency on dark theme classes for standard */
+html.theme-standard .sk-card {
+  background: #fff;
+  border-color: #cbd5e1;
+  color: #0f172a;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06), 0 12px 28px -12px rgba(30, 64, 175, 0.12);
+}
+
+/* v70 announce marquee */
+.sm-announce-track {
+  display: inline-block;
+  padding-left: 100%;
+  animation: sm-marquee 22s linear infinite;
+}
+@keyframes sm-marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-100%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sm-announce-track { animation: none; padding-left: 0; white-space: normal; }
+}
+
+/* Plan shell accents */
+.plan-basic .sm-topbar { border-color: #93c5fd !important; }
+.plan-premium .sm-topbar,
+.plan-trial .sm-topbar {
+  border-color: #fbbf24 !important;
+  box-shadow: 0 0 24px rgba(251, 191, 36, 0.15);
+}
+.plan-pro .sm-topbar {
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 0 24px rgba(226, 232, 240, 0.25);
+}
+.plan-premium .sm-gold-btn,
+.plan-trial .sm-gold-btn {
+  box-shadow: 0 0 16px rgba(251, 191, 36, 0.45);
+}
+
+
+/* Super Admin dense tables — never white-on-white */
+.sa-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #0f172a;
+  color: #f1f5f9;
+}
+.sa-table thead th {
+  background: #020617 !important;
+  color: #cbd5e1 !important;
+  border-bottom: 2px solid #334155;
+}
+.sa-table tbody td {
+  background: #0f172a !important;
+  color: #f1f5f9 !important;
+  border-bottom: 1px solid #334155;
+}
+.sa-table tbody tr:hover td {
+  background: #1e293b !important;
+}
+
+/* Compact action chips: blue idle, gold active */
+.sm-action-btn {
+  background: #0284c7;
+  color: #fff;
+  font-weight: 700;
+  border-radius: 0.5rem;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.7rem;
+  border: 1px solid #0ea5e9;
+}
+.sm-action-btn:hover { background: #0ea5e9; }
+.sm-action-btn:active, .sm-action-btn.is-on {
+  background: #fbbf24;
+  color: #78350f;
+  border-color: #f59e0b;
+}
+
+/* ===== Desk shell colour themes (no photo backgrounds) ===== */
+.sm-app-shell {
+  min-height: 100vh;
+  background:
+    radial-gradient(ellipse 90% 60% at 0% 0%, rgba(37, 99, 235, 0.14), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 100% 0%, rgba(14, 165, 233, 0.12), transparent 50%),
+    linear-gradient(180deg, #e8eef7 0%, #dbe4f3 40%, #eef2f7 100%);
+}
+
+html[data-shell="sky"] .sm-app-shell,
+html:not([data-shell]) .sm-app-shell {
+  background:
+    radial-gradient(ellipse 90% 55% at 10% 0%, rgba(56, 189, 248, 0.18), transparent 55%),
+    radial-gradient(ellipse 70% 45% at 100% 10%, rgba(37, 99, 235, 0.12), transparent 50%),
+    linear-gradient(165deg, #e0f2fe 0%, #eff6ff 45%, #f8fafc 100%);
+}
+
+html[data-shell="indigo"] .sm-app-shell {
+  background:
+    radial-gradient(ellipse 80% 50% at 0% 0%, rgba(99, 102, 241, 0.2), transparent 55%),
+    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(79, 70, 229, 0.12), transparent 50%),
+    linear-gradient(165deg, #e0e7ff 0%, #eef2ff 50%, #f8fafc 100%);
+}
+
+html[data-shell="teal"] .sm-app-shell {
+  background:
+    radial-gradient(ellipse 80% 50% at 0% 0%, rgba(20, 184, 166, 0.18), transparent 55%),
+    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(13, 148, 136, 0.12), transparent 50%),
+    linear-gradient(165deg, #ccfbf1 0%, #f0fdfa 50%, #f8fafc 100%);
+}
+
+html[data-shell="slate"] .sm-app-shell {
+  background:
+    radial-gradient(ellipse 80% 50% at 0% 0%, rgba(100, 116, 139, 0.16), transparent 55%),
+    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(71, 85, 105, 0.1), transparent 50%),
+    linear-gradient(165deg, #e2e8f0 0%, #f1f5f9 50%, #f8fafc 100%);
+}
+
+html[data-shell="sunrise"] .sm-app-shell {
+  background:
+    radial-gradient(ellipse 80% 50% at 0% 0%, rgba(251, 191, 36, 0.2), transparent 55%),
+    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(249, 115, 22, 0.1), transparent 50%),
+    linear-gradient(165deg, #fef3c7 0%, #fff7ed 45%, #f8fafc 100%);
+}
+
+/* Setup theme picker swatches */
+.shell-preview { border: 1px solid rgba(15,23,42,0.08); }
+.shell-preview-sky {
+  background: linear-gradient(135deg, #bae6fd, #dbeafe 50%, #f0f9ff);
+}
+.shell-preview-indigo {
+  background: linear-gradient(135deg, #c7d2fe, #e0e7ff 50%, #eef2ff);
+}
+.shell-preview-teal {
+  background: linear-gradient(135deg, #99f6e4, #ccfbf1 50%, #f0fdfa);
+}
+.shell-preview-slate {
+  background: linear-gradient(135deg, #cbd5e1, #e2e8f0 50%, #f1f5f9);
+}
+.shell-preview-sunrise {
+  background: linear-gradient(135deg, #fde68a, #fed7aa 50%, #ffedd5);
+}

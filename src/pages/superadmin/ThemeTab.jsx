@@ -68,30 +68,12 @@ export default function ThemeTab({ theme, setTheme, savingCms, saveCms }) {
 
             <div className="rounded-xl border border-slate-700 bg-slate-950/50 p-4 space-y-3">
               <h3 className="text-sm font-black text-amber-400 uppercase tracking-wider">Public login branding</h3>
-              <p className="text-xs text-slate-400">Controls the words under the logo on the login page and related public labels. Leave blank to use defaults.</p>
+              <p className="text-xs text-slate-400">Controls the product name shown under the logo and the footer line on the login page. Leave blank to show nothing — there is no built-in fallback text.</p>
               <label className="block text-xs text-slate-400">Product name
-                <input className={saField} style={{ color: "#f8fafc", backgroundColor: "#1e293b" }} value={theme.brand_name || ''} onChange={(e) => setTheme({ ...theme, brand_name: e.target.value })} placeholder="ShuleMoja" />
-              </label>
-              <label className="block text-xs text-slate-400">Tagline (on logo / marketing)
-                <input className={saField} style={{ color: "#f8fafc", backgroundColor: "#1e293b" }} value={theme.tagline || ''} onChange={(e) => setTheme({ ...theme, tagline: e.target.value })} placeholder="Run the school. Keep the history." />
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <label className="block text-xs text-slate-400">Line under logo (left)
-                  <input className={saField} style={{ color: "#f8fafc", backgroundColor: "#1e293b" }} value={theme.product_line || ''} onChange={(e) => setTheme({ ...theme, product_line: e.target.value })} placeholder="School Management" />
-                </label>
-                <label className="block text-xs text-slate-400">Line under logo (right)
-                  <input className={saField} style={{ color: "#f8fafc", backgroundColor: "#1e293b" }} value={theme.country_line || ''} onChange={(e) => setTheme({ ...theme, country_line: e.target.value })} placeholder="Kenya" />
-                </label>
-              </div>
-              <label className="block text-xs text-slate-400">Company line (“by …”)
-                <input className={saField} style={{ color: "#f8fafc", backgroundColor: "#1e293b" }} value={theme.company_line || ''} onChange={(e) => setTheme({ ...theme, company_line: e.target.value })} placeholder="BigDataKE Technologies" />
-              </label>
-              <label className="block text-xs text-slate-400">Paragraph under the image (login)
-                <textarea className={saField} style={{ color: "#f8fafc", backgroundColor: "#1e293b" }} rows={3} value={theme.login_subtext ?? ''} onChange={(e) => setTheme({ ...theme, login_subtext: e.target.value })} placeholder="Text under the logo on login (leave empty for none)" />
-                <button type="button" className="text-xs font-bold text-amber-300 mt-1" onClick={() => setTheme({ ...theme, login_subtext: '' })}>Clear login text under logo</button>
+                <input className={saField} style={{ color: "#f8fafc", backgroundColor: "#1e293b" }} value={theme.brand_name || ''} onChange={(e) => setTheme({ ...theme, brand_name: e.target.value })} placeholder="Leave blank to show nothing" />
               </label>
               <label className="block text-xs text-slate-400">Footer copyright
-                <input className={saField} style={{ color: "#f8fafc", backgroundColor: "#1e293b" }} value={theme.footer_text || ''} onChange={(e) => setTheme({ ...theme, footer_text: e.target.value })} placeholder="© BigDataKE Technologies. All rights reserved." />
+                <input className={saField} style={{ color: "#f8fafc", backgroundColor: "#1e293b" }} value={theme.footer_text || ''} onChange={(e) => setTheme({ ...theme, footer_text: e.target.value })} placeholder="Leave blank to show nothing" />
               </label>
             </div>
 
@@ -100,7 +82,7 @@ export default function ThemeTab({ theme, setTheme, savingCms, saveCms }) {
               <strong> Save theme &amp; branding</strong>. Refresh the login page. Prefer a tall image (phone + logo)
               under ~400KB. If upload fails, the default file in <code>public/logo-c2.jpg</code> is used after deploy.
             </p>
-            <button type="button" disabled={savingCms} className={btnGreen} onClick={() => saveCms('theme', theme)}>
+<button type="button" disabled={savingCms} className={btnGreen} onClick={() => saveCms('theme', theme)}>
               Save theme &amp; branding for whole platform
             </button>
           </div>

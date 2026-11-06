@@ -16,6 +16,7 @@ import PromotionTab from './setup/PromotionTab'
 import StaffTab from './setup/StaffTab'
 import ParentsTab from './setup/ParentsTab'
 import AuditTab from './setup/AuditTab'
+import ProfileLangTab from './setup/ProfileLangTab'
 
 const ALL_TABS = [
   { id: 'School identity', group: 'School' },
@@ -32,6 +33,7 @@ const ALL_TABS = [
   { id: 'Parents', group: 'People' },
   { id: 'Promotion', group: 'People' },
   { id: 'Audit', group: 'System' },
+  { id: 'Profile & language', group: 'System' },
 ]
 
 export default function Setup({ school, term, user, onTermChange }) {
@@ -92,10 +94,10 @@ export default function Setup({ school, term, user, onTermChange }) {
                 key={t.id}
                 type="button"
                 onClick={() => setTab(t.id)}
-                className={`relative px-4 py-3 text-sm font-semibold whitespace-nowrap border-r border-slate-200/80 transition ${
+                className={`relative px-4 py-3 text-sm font-black whitespace-nowrap border-r border-slate-200/80 transition ${
                   on
-                    ? 'bg-white text-blue-700 after:absolute after:left-0 after:right-0 after:bottom-0 after:h-0.5 after:bg-blue-600'
-                    : 'text-slate-600 hover:bg-white/80 hover:text-slate-900'
+                    ? 'bg-gradient-to-b from-sky-400 to-blue-700 text-white border-sky-300 shadow-[0_3px_0_#1e3a8a,0_0_16px_rgba(56,189,248,0.5)]'
+                    : 'text-slate-600 hover:bg-sky-50 hover:text-sky-900'
                 }`}
               >
                 {t.id}
@@ -115,7 +117,7 @@ export default function Setup({ school, term, user, onTermChange }) {
           {active === 'School identity' && <SchoolIdentityTab school={school} user={user} />}
           {active === 'Terms' && <TermsTab school={school} term={term} onTermChange={onTermChange} />}
           {active === 'Grades & Subjects' && <GradesSubjectsTab school={school} />}
-          {active === 'Class subjects' && <ClassSubjectsTab school={school} term={term} />}
+          {active === 'Class subjects' && <ClassSubjectsTab school={school} term={term} user={user} />}
           {active === 'Baskets' && <BasketsTab school={school} />}
           {active === 'Grading' && <GradingTab school={school} />}
           {active === 'Fee Structure' && <FeeStructureTab school={school} term={term} />}
@@ -126,6 +128,7 @@ export default function Setup({ school, term, user, onTermChange }) {
           {active === 'Parents' && <ParentsTab school={school} user={user} />}
           {active === 'Promotion' && <PromotionTab school={school} term={term} user={user} />}
           {active === 'Audit' && <AuditTab school={school} />}
+          {active === 'Profile & language' && <ProfileLangTab user={user} />}
         </div>
       </div>
     </div>

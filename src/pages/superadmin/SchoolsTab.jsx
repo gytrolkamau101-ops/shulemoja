@@ -125,7 +125,7 @@ export default function SchoolsTab({
             onChange={(e) => setFilter(e.target.value)}
           />
         </div>
-        <Scroll>
+        <Scroll dark>
           <table className="w-full sa-table">
             <thead className="bg-slate-950">
               <tr>
@@ -322,7 +322,7 @@ export default function SchoolsTab({
                 )}
               </div>
 
-              <Scroll>
+              <Scroll dark>
                 <table className="w-full sa-table">
                   <thead className="bg-slate-950">
                     <tr>

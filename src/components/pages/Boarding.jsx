@@ -196,7 +196,7 @@ export default function Boarding({ school, user }) {
             key={t.id}
             type="button"
             onClick={() => setTab(t.id)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-black ${tab === t.id ? 'bg-blue-700 text-white' : 'bg-slate-100 text-slate-700'}`}
+            className={`px-3 py-1.5 rounded-lg text-xs font-black border transition ${tab === t.id ? 'bg-amber-400 text-amber-950 border-amber-300 shadow' : 'bg-sky-600 text-white border-sky-500 hover:bg-sky-500'}`}
           >
             {t.label}
           </button>

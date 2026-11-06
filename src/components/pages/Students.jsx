@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../supabaseClient'
 import { Card, Scroll, Alert, NeedTerm, PageTitle, input, btnGreen, btnGhost, th, td, Modal, toast } from '../ui'
+import { openPrintDocument } from '../../lib/docHeader'
 import ImagePicker from '../ImagePicker'
 import { suspensionLetterText, transferLetterText, waCompose, printBrandedLetter } from '../../lib/letters'
-import { planEntitlements } from '../../lib/plans'
+import { planEntitlements, canAccessModule } from '../../lib/plans'
 
 import { canEditData } from '../../lib/roles'
 import { nullIfEmpty, studentsToNemisCsv, downloadText } from '../../lib/studentsCsv'
@@ -27,6 +28,8 @@ const blank = {
 export default function Students({ school, user, term }) {
   const ent = planEntitlements(school || {})
   const canEdit = canEditData(user?.role) && !ent.readOnly && ent.planId !== 'free'
+  // Bulk CSV import/export of student details is a Premium feature — manual add/edit/remove stays on Basic.
+  const canCsv = canAccessModule(school || {}, 'import')
   const [students, setStudents] = useState([])
   const [enrollMap, setEnrollMap] = useState({}) // student_id -> { enrollment_id, grade_id, grade_name }
   const [grades, setGrades] = useState([])
@@ -150,13 +153,84 @@ export default function Students({ school, user, term }) {
 
 
 
+  const printClassList = () => {
+    const gradeLabel =
+      gradeFilter && gradeFilter !== 'all'
+        ? grades.find((g) => g.id === gradeFilter)?.grade_name || 'Class'
+        : 'All classes'
+    const list = filtered || []
+    const rows = list
+      .map(
+        (s, i) =>
+          `<tr><td>${i + 1}</td><td>${s.admission_no || ''}</td><td>${s.first_name || ''} ${s.last_name || ''}</td><td>${s.gender || ''}</td><td>${enrollMap[s.id]?.grade_name || ''}</td><td>${s.parent_phone || ''}</td></tr>`
+      )
+      .join('')
+    const ok = openPrintDocument({
+      school,
+      title: `Class list — ${gradeLabel}`,
+      bodyHtml: `<h2 style="text-align:center">Class list — ${gradeLabel}</h2>
+        <p style="text-align:center">Term ${term?.term || ''} · ${term?.year || ''} · ${list.length} learner(s)</p>
+        <table><thead><tr><th>#</th><th>Adm</th><th>Name</th><th>Gender</th><th>Grade</th><th>Parent phone</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="6">No learners</td></tr>'}</tbody></table>
+        <p class="no-print" style="margin-top:12px"><button onclick="window.print()">Print / Save PDF</button></p>`,
+    })
+    if (!ok) toast?.('Allow pop-ups to print the class list', 'error')
+  }
+
+  const promoteGradeDay = async () => {
+    if (!canEdit || !term || !gradeFilter || gradeFilter === 'all') {
+      setError('Select a specific grade filter first, then run Promotion day.')
+      return
+    }
+    const gradeName = grades.find((g) => g.id === gradeFilter)?.grade_name || ''
+    const ordered = [...grades].sort((a, b) => String(a.grade_name).localeCompare(String(b.grade_name), undefined, { numeric: true }))
+    const idx = ordered.findIndex((g) => g.id === gradeFilter)
+    const next = idx >= 0 ? ordered[idx + 1] : null
+    const ids = filtered.map((s) => s.id)
+    if (!ids.length) return setError('No learners in this grade.')
+    if (!next) {
+      if (!confirm(`No next grade after "${gradeName}". Mark ${ids.length} learner(s) as Alumni? Arrears stay on record.`)) return
+      setSaving(true)
+      const { error: err } = await supabase.from('students').update({ status: 'Alumni' }).in('id', ids)
+      setSaving(false)
+      if (err) setError(err.message)
+      else {
+        toast?.(`${ids.length} promoted to Alumni`, 'ok')
+        setSelectedIds(new Set())
+        fetchAll()
+      }
+      return
+    }
+    if (!confirm(`Promotion day: move ${ids.length} learner(s) from ${gradeName} → ${next.grade_name}?`)) return
+    setSaving(true)
+    setError('')
+    let failed = 0
+    for (const sid of ids) {
+      const existing = enrollMap[sid]
+      if (existing?.enrollment_id) {
+        const { error } = await supabase.from('student_enrollments').update({ grade_id: next.id }).eq('id', existing.enrollment_id)
+        if (error) failed++
+      } else {
+        const { error } = await supabase.from('student_enrollments').insert([
+          { school_id: school?.id, student_id: sid, term_id: term.id, grade_id: next.id },
+        ])
+        if (error) failed++
+      }
+    }
+    setSaving(false)
+    if (failed) setError(`Moved some learners; ${failed} failed.`)
+    else toast?.(`Promoted ${ids.length} to ${next.grade_name}`, 'ok')
+    fetchAll()
+  }
+
   const exportNemis = () => {
+    if (!canCsv) return
     const csv = studentsToNemisCsv(filtered, byGradeLabel)
     downloadText(`shulemoja_students_${school.school_code || 'export'}.csv`, csv)
   }
 
   const importCsv = async (file) => {
-    if (!file || !canEdit) return
+    if (!file || !canEdit || !canCsv) return
     setError('')
     const text = await file.text()
     const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
@@ -274,6 +348,31 @@ export default function Students({ school, user, term }) {
     }
   }
 
+  const bulkSetStatus = async (status, label) => {
+    if (!canEdit || selectedIds.size === 0) return
+    const n = selectedIds.size
+    if (!confirm(`${label} ${n} learner(s)? Fee arrears stay on the record.`)) return
+    setSaving(true)
+    setError('')
+    const { error: err } = await supabase.from('students').update({ status }).in('id', [...selectedIds])
+    if (status === 'Alumni' || status === 'Inactive') {
+      for (const id of selectedIds) {
+        try { await supabase.from('parent_children').update({ status: 'revoked' }).eq('student_id', id) } catch (_) {}
+      }
+    }
+    setSaving(false)
+    if (err) setError(err.message)
+    else {
+      toast?.(`${n} marked ${status}`, 'ok')
+      setSelectedIds(new Set())
+      await fetchAll()
+    }
+  }
+
+  const bulkPromoteAlumni = () => bulkSetStatus('Alumni', 'Promote to alumni')
+  const bulkDeactivate = () => bulkSetStatus('Inactive', 'Deactivate')
+
+
   const setGrade = async (studentId, gradeId) => {
     if (!term) return
     setMovingId(studentId)
@@ -306,24 +405,38 @@ export default function Students({ school, user, term }) {
       <PageTitle
         right={
           canEdit && (
-            <div className="flex flex-wrap gap-2 items-center">
-              <button type="button" onClick={exportNemis} className={btnGhost}>
-                Export CSV
-              </button>
-              <label className={`${btnGhost} cursor-pointer`}>
-                Import CSV
-                <input
-                  type="file"
-                  accept=".csv,text/csv"
-                  className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0]
-                    if (f) importCsv(f)
-                    e.target.value = ''
-                  }}
-                />
-              </label>
-              <button onClick={() => setShowForm((v) => !v)} className={btnGreen}>
+            <div className="flex flex-wrap gap-1.5 items-center max-w-full w-full">
+              {canCsv ? (
+                <>
+                  <button type="button" onClick={exportNemis} className="px-3 py-1.5 rounded-lg text-xs font-black border transition shrink-0 bg-sky-600 text-white border-sky-500 hover:bg-sky-500 active:bg-amber-400 active:text-amber-950 active:border-amber-300">
+                    Export CSV
+                  </button>
+                  <button type="button" onClick={printClassList} className="px-3 py-1.5 rounded-lg text-xs font-black border transition shrink-0 bg-sky-600 text-white border-sky-500 hover:bg-sky-500 active:bg-amber-400 active:text-amber-950 active:border-amber-300">Class list PDF</button>
+                  <label className="px-3 py-1.5 rounded-lg text-xs font-black border transition shrink-0 bg-sky-600 text-white border-sky-500 hover:bg-sky-500 active:bg-amber-400 active:text-amber-950 active:border-amber-300 cursor-pointer">
+                    Import CSV
+                    <input
+                      type="file"
+                      accept=".csv,text/csv"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0]
+                        if (f) importCsv(f)
+                        e.target.value = ''
+                      }}
+                    />
+                  </label>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className="px-3 py-1.5 rounded-lg text-xs font-black border transition shrink-0 bg-sky-600 text-white border-sky-500 hover:bg-sky-500 active:bg-amber-400 active:text-amber-950 active:border-amber-300 opacity-70"
+                  title="Bulk CSV import/export needs Premium or Pro"
+                  onClick={() => toast('Bulk CSV import/export needs Premium or Pro. Upgrade from Login → Subscribe.', 'error')}
+                >
+                  Import / Export CSV 🔒
+                </button>
+              )}
+              <button onClick={() => setShowForm((v) => !v)} className="px-3 py-1.5 rounded-lg text-xs font-black border shrink-0 bg-emerald-600 text-white border-emerald-500 hover:bg-emerald-500 whitespace-nowrap">
                 {showForm ? 'Cancel' : '+ Add student'}
               </button>
             </div>
@@ -468,6 +581,12 @@ export default function Students({ school, user, term }) {
           {canEdit && selectedIds.size > 0 && (
             <div className="flex flex-wrap items-center gap-2 mb-2 p-2 rounded-xl bg-red-50 border border-red-100">
               <span className="text-sm font-bold text-red-800">{selectedIds.size} selected</span>
+              <button type="button" className="px-3 py-1.5 rounded-lg bg-slate-800 text-white text-xs font-black" onClick={bulkDeactivate}>
+                Deactivate
+              </button>
+              <button type="button" className="px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-black" onClick={bulkPromoteAlumni}>
+                Promote → Alumni
+              </button>
               <button type="button" className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-black" onClick={bulkRemove}>
                 Delete selected
               </button>
@@ -563,7 +682,7 @@ export default function Students({ school, user, term }) {
             <p className="text-sm text-gray-600">Grade: {enrollMap[selected.id]?.grade_name || 'Not assigned'}</p>
             <p className="text-sm text-gray-600">Status: {selected.status || 'Active'}</p>
             {canEdit && (
-              <div className="flex flex-wrap gap-2 pt-2">
+              <div className="flex flex-wrap gap-1.5 pt-2 max-w-full">
                 <button type="button" className="text-xs font-bold px-2 py-1 rounded-lg bg-amber-100 text-amber-900 border border-amber-200"
                   onClick={async () => {
                     await supabase.from('students').update({ status: 'Suspended' }).eq('id', selected.id)
@@ -571,7 +690,7 @@ export default function Students({ school, user, term }) {
                     const text = suspensionLetterText({ schoolName: school.school_name, studentName: selected.first_name + ' ' + selected.last_name, admissionNo: selected.admission_no })
                     const wa = waCompose(selected.parent_phone, text)
                     if (wa) window.open(wa, '_blank')
-                    printBrandedLetter({ school, title: 'Suspension notice', bodyHtml: text.replace(/\n/g, '<br/>'), watermark: planEntitlements(school || {}).reportWatermark })
+                    printBrandedLetter({ school, title: 'Suspension notice', bodyHtml: text.replace(/\n/g, '<br/>') })
                     setSelected(null)
                     fetchAll()
                   }}>Suspend + letter</button>
@@ -582,7 +701,7 @@ export default function Students({ school, user, term }) {
                     const text = transferLetterText({ schoolName: school.school_name, studentName: selected.first_name + ' ' + selected.last_name, admissionNo: selected.admission_no })
                     const wa = waCompose(selected.parent_phone, text)
                     if (wa) window.open(wa, '_blank')
-                    printBrandedLetter({ school, title: 'Transfer letter', bodyHtml: text.replace(/\n/g, '<br/>'), watermark: planEntitlements(school || {}).reportWatermark })
+                    printBrandedLetter({ school, title: 'Transfer letter', bodyHtml: text.replace(/\n/g, '<br/>') })
                     setSelected(null)
                     fetchAll()
                   }}>Transfer + letter</button>

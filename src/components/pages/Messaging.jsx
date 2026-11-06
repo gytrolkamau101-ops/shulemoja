@@ -129,7 +129,7 @@ export default function Messaging({ school, user }) {
         <textarea className={`${input} min-h-[130px] mb-3`} value={body} onChange={(e) => setBody(e.target.value)} placeholder="Message…" />
         <Alert>{error}</Alert>
         {info && <Alert kind="ok">{info}</Alert>}
-        <button type="button" onClick={openChannel} className={btnGreen}>
+        <button type="button" onClick={openChannel} className="px-4 py-2.5 rounded-xl bg-sky-600 text-white text-sm font-bold hover:bg-sky-500 active:bg-amber-400 active:text-amber-950 shadow">
           Open {channel}
         </button>
       </Card>

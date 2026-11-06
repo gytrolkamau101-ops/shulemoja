@@ -17,11 +17,12 @@ import SupportTab from './superadmin/SupportTab'
 import BillingTab from './superadmin/BillingTab'
 import PaymentsTab from './superadmin/PaymentsTab'
 import AuditTabSa from './superadmin/AuditTab'
+import AnalyticsTab from './superadmin/AnalyticsTab'
 
 import { saField, saTd, saTh } from './superadmin/saStyles'
 
 
-const TABS = ['overview', 'schools', 'referrals', 'partners', 'support', 'billing', 'payments', 'theme', 'pricing', 'pages', 'audit']
+const TABS = ['overview', 'schools', 'referrals', 'partners', 'support', 'billing', 'payments', 'analytics', 'theme', 'pricing', 'pages', 'audit']
 const TAB_LABELS = {
   overview: 'Overview',
   schools: 'Schools',
@@ -33,6 +34,7 @@ const TAB_LABELS = {
   theme: 'Theme',
   pricing: 'Pricing',
   pages: 'Pages',
+  analytics: 'Analytics',
   audit: 'Audit',
 }
 
@@ -57,18 +59,14 @@ export default function SuperAdmin({ session }) {
     bg_to: '#1e3a8a',
     logo_text: 'SM',
     brand_logo_url: '',
-    brand_name: 'ShuleMoja',
-    tagline: 'Run the school. Keep the history.',
-    product_line: 'School Management',
-    country_line: 'Kenya',
-    company_line: 'BigDataKE Technologies',
-    login_subtext: '',
-    footer_text: '© BigDataKE Technologies. All rights reserved.',
+    brand_name: '',
+    footer_text: '',
   })
   const [pricing, setPricing] = useState({ currency: 'KES', plans: [] })
   const [terms, setTerms] = useState({ title: 'Terms & Conditions', body: '' })
   const [privacy, setPrivacy] = useState({ title: 'Privacy Policy', body: '' })
   const [how, setHow] = useState({ title: 'How it works', body: '' })
+  const [howApp, setHowApp] = useState({ title: 'How to use the app', body: '' })
   const [contacts, setContacts] = useState({ title: 'Contact us', email: '', phone: '', whatsapp: '', address: '' })
   const [savingCms, setSavingCms] = useState(false)
   const [payEvents, setPayEvents] = useState([])
@@ -97,7 +95,7 @@ export default function SuperAdmin({ session }) {
     }
     const [{ data: sch }, { data: aud }, { data: pays }] = await Promise.all([
       supabase.from('schools').select('*').order('created_at', { ascending: false }),
-      supabase.from('audit_events').select('*').order('created_at', { ascending: false }).limit(100),
+      supabase.from('audit_events').select('*').order('created_at', { ascending: false }).limit(500),
       supabase.from('subscription_events').select('*').order('created_at', { ascending: false }).limit(300),
     ])
     try {
@@ -120,12 +118,13 @@ export default function SuperAdmin({ session }) {
       setPartners([])
       setPartnerEvents([])
     }
-    const [th, pr, te, pv, hi, co] = await Promise.all([
+    const [th, pr, te, pv, hi, ha, co] = await Promise.all([
       getSetting('theme'),
       getSetting('pricing'),
       getSetting('terms'),
       getSetting('privacy'),
       getSetting('how_it_works'),
+      getSetting('how_it_works_app'),
       getSetting('contacts'),
     ])
     if (th) setTheme((p) => ({ ...p, ...th }))
@@ -134,6 +133,7 @@ export default function SuperAdmin({ session }) {
     if (pv) setPrivacy(pv)
     if (te) setTerms(te)
     if (hi) setHow(hi)
+    if (ha) setHowApp(ha)
     if (co) setContacts(co)
     setLoading(false)
   }, [session.user.id])
@@ -212,13 +212,9 @@ export default function SuperAdmin({ session }) {
             brand_logo_url: await compressDataUrl(payload.brand_logo_url, { maxW: 520, quality: 0.6 }),
           }
           setTheme(payload)
-        } catch (_) {
-          /* keep original */
-        }
+        } catch (_) {}
         if (String(payload.brand_logo_url).length > 900000) {
-          throw new Error(
-            'Logo still too large after compression. Use a smaller JPG (under 300KB) or paste a public image URL.'
-          )
+          throw new Error('Logo still too large after compression. Use a smaller JPG (under 300KB) or a public image URL.')
         }
       }
       const saved = await saveSetting(key, payload)
@@ -477,10 +473,13 @@ export default function SuperAdmin({ session }) {
           <PricingTab pricing={pricing} setPricing={setPricing} savingCms={savingCms} saveCms={saveCms} />
         )}
         {tab === 'pages' && (
-          <PagesTab terms={terms} setTerms={setTerms} privacy={privacy} setPrivacy={setPrivacy} how={how} setHow={setHow} contacts={contacts} setContacts={setContacts} savingCms={savingCms} saveCms={saveCms} />
+          <PagesTab terms={terms} setTerms={setTerms} privacy={privacy} setPrivacy={setPrivacy} how={how} setHow={setHow} howApp={howApp} setHowApp={setHowApp} contacts={contacts} setContacts={setContacts} savingCms={savingCms} saveCms={saveCms} />
         )}
         {tab === 'payments' && (
           <PaymentsTab filteredPays={filteredPays} payFilter={payFilter} setPayFilter={setPayFilter} schoolName={schoolName} stats={stats} reload={reload} />
+        )}
+        {tab === 'analytics' && (
+          <AnalyticsTab schools={schools} pays={payEvents} audit={events} />
         )}
 {tab === 'audit' && (
           <AuditTabSa events={events} />

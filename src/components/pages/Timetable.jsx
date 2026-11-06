@@ -10,7 +10,7 @@ const DAYS = [
   { n: 5, label: 'Fri' },
 ]
 /** Kenya-style day: assembly, 40-min lessons, short break, mid-morning, lunch */
-const PERIODS = [
+const DEFAULT_PERIODS = [
   { n: 1, label: '1', time: '8:20–9:00' },
   { n: 2, label: '2', time: '9:00–9:40' },
   { n: 3, label: 'Break', time: '9:40–9:50', break: true },
@@ -27,6 +27,13 @@ const HEADS = ['Principal', 'Deputy Principal']
 
 export default function Timetable({ school, user, term }) {
   const lockKey = `tt_lock_${school?.id || 'x'}`
+  const [periods, setPeriods] = useState(() => {
+    try {
+      const raw = localStorage.getItem(`tt_periods_${school?.id || 'x'}`)
+      if (raw) return JSON.parse(raw)
+    } catch (_) {}
+    return DEFAULT_PERIODS
+  })
   const [locked, setLocked] = useState(() => {
     try {
       return localStorage.getItem(lockKey) === '1'
@@ -185,6 +192,30 @@ export default function Timetable({ school, user, term }) {
           </button>
         )}
         {locked && <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-2 py-1 rounded-lg">Locked</span>}
+        {isHead && !locked && (
+          <details className="w-full mt-2 rounded-xl border border-sky-200 bg-sky-50 p-2">
+            <summary className="text-xs font-black text-sky-900 cursor-pointer">Edit period times / duration</summary>
+            <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
+              {periods.map((p, idx) => (
+                <div key={p.n} className="flex gap-2 items-center">
+                  <span className="text-[10px] font-bold w-12 text-slate-600">{p.label}</span>
+                  <input
+                    className="flex-1 rounded-lg border border-slate-200 px-2 py-1 text-xs"
+                    value={p.time}
+                    disabled={!!p.break && false}
+                    onChange={(e) => {
+                      const next = periods.map((x, i) => (i === idx ? { ...x, time: e.target.value } : x))
+                      setPeriods(next)
+                      try {
+                        localStorage.setItem(`tt_periods_${school?.id || 'x'}`, JSON.stringify(next))
+                      } catch (_) {}
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+          </details>
+        )}
         {!isHead && <span className="text-xs text-slate-500">View only</span>}
       </div>
 
@@ -205,7 +236,7 @@ export default function Timetable({ school, user, term }) {
                 </tr>
               </thead>
               <tbody>
-                {PERIODS.map((p) => (
+                {periods.map((p) => (
                   <tr key={p.n} className={p.break ? 'bg-slate-50' : ''}>
                     <td className={`${td} text-[10px] font-bold text-slate-500 whitespace-nowrap`}>
                       {p.label}

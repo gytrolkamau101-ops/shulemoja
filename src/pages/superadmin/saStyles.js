@@ -1,8 +1,21 @@
-/** Forced-contrast fields for dark Super Admin (avoids white-on-white). */
+/** Super Admin field + table styles — dark theme contrast */
 export const saField =
-  'w-full rounded-xl border border-slate-500 bg-slate-800 text-slate-50 px-3 py-2.5 text-sm placeholder:text-slate-400'
-export const saFieldStyle = { color: '#f8fafc', backgroundColor: '#1e293b', borderColor: '#64748b' }
-export const saTd = 'px-3 py-3 text-sm text-slate-100 border-b border-slate-700'
+  'w-full rounded-xl border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500'
+
+export const saFieldStyle = {
+  color: '#f8fafc',
+  backgroundColor: '#1e293b',
+  borderColor: '#475569',
+}
+
 export const saTh =
-  'px-3 py-3 text-left text-xs font-black uppercase tracking-wide text-slate-300 whitespace-nowrap bg-slate-950 border-b-2 border-slate-700'
-export const saCard = 'rounded-2xl border border-slate-700 bg-slate-900 p-5 space-y-4 text-slate-100'
+  'text-left text-[10px] font-black uppercase tracking-wider text-slate-300 px-3 py-2.5 bg-slate-800/90 sticky top-0'
+
+export const saTd =
+  'px-3 py-2.5 text-sm text-slate-100 border-t border-slate-700/80'
+
+export const saTableWrap =
+  'rounded-xl border border-slate-600 bg-slate-900/90 overflow-hidden'
+
+export const saTable =
+  'w-full text-sm text-slate-100'

@@ -13,7 +13,7 @@ export default function ReferralsTab({ schools }) {
         </p>
       </div>
       <div className="rounded-2xl border border-slate-700 bg-slate-900 overflow-hidden">
-        <Scroll>
+        <Scroll dark>
           <table className="w-full sa-table">
             <thead className="bg-slate-950">
               <tr>

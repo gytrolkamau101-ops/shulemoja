@@ -201,6 +201,15 @@ export default function Admissions({ school, user, term }) {
                             <option key={s} value={s}>{s}</option>
                           ))}
                         </select>
+                        {r.status !== 'enrolled' && r.status !== 'rejected' && (
+                          <button
+                            type="button"
+                            className="text-emerald-700 text-xs font-black px-2"
+                            onClick={() => setStatus(r.id, 'enrolled')}
+                          >
+                            Enroll as student
+                          </button>
+                        )}
                         <button type="button" className="text-red-600 text-xs font-bold px-2" onClick={() => remove(r.id)}>Delete</button>
                       </div>
                     </td>

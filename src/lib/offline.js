@@ -1,7 +1,7 @@
 /** Offline queue — localStorage, retry with backoff metadata, sync when online */
 
 const KEY = 'shulemoja_offline_queue_v2'
-const LEGACY = 'shulekit_offline_queue_v1'
+const LEGACY = 'shulemoja_offline_queue_v1'
 const MAX_ITEMS = 200
 const MAX_ATTEMPTS = 8
 

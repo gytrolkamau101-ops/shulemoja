@@ -7,7 +7,7 @@ import { captchaRequired, renderTurnstile, resetTurnstile, getTurnstileSiteKey }
 import { DEFAULT_PRIVACY } from '../lib/privacyDefault'
 import CmsViews from './login/CmsViews'
 import { DEFAULT_PLANS } from '../lib/plans'
-import { BRAND_NAME, COMPANY_NAME, TAGLINE, LOGO_TEXT, LOGO_C2, PRODUCT_LINE, COUNTRY_LINE, COPYRIGHT } from '../brand'
+import { BRAND_NAME, LOGO_TEXT, LOGO_C2 } from '../brand'
 
 
 
@@ -23,7 +23,22 @@ export default function Login() {
       return ''
     }
   })
-  const [password, setPassword] = useState('')
+  const [password, setPassword] = useState(() => {
+    try {
+      return localStorage.getItem('sm_remember_pass') === '1'
+        ? localStorage.getItem('sm_saved_pass') || ''
+        : ''
+    } catch {
+      return ''
+    }
+  })
+  const [rememberPass, setRememberPass] = useState(() => {
+    try {
+      return localStorage.getItem('sm_remember_pass') === '1'
+    } catch {
+      return false
+    }
+  })
   const [fullName, setFullName] = useState('')
   const [regType, setRegType] = useState('join')
   const [schoolName, setSchoolName] = useState('')
@@ -52,13 +67,8 @@ export default function Login() {
     bg_to: '#1e3a8a',
     bg_style: 'gradient',
     brand_logo_url: '',
-    brand_name: BRAND_NAME,
-    tagline: TAGLINE,
-    product_line: PRODUCT_LINE,
-    country_line: COUNTRY_LINE,
-    company_line: COMPANY_NAME,
-    login_subtext: '',
-    footer_text: COPYRIGHT,
+    brand_name: '',
+    footer_text: '',
   })
 
   // Instant paint from last Super Admin save (avoid flash of default logo/text)
@@ -148,13 +158,13 @@ Basic includes core records and finance. Premium unlocks Messages, Attendance, T
     const s = await getSettings(['theme', 'pricing', 'terms', 'how_it_works', 'contacts'])
 
         if (s.theme) {
-          setTheme((p) => ({ ...p, ...s.theme, login_subtext: s.theme.login_subtext ?? '' }))
+          setTheme((p) => ({ ...p, ...s.theme }))
           try {
             const th = s.theme
             const r = document.documentElement
             if (th.primary) r.style.setProperty('--sk-primary', th.primary)
             if (th.accent) r.style.setProperty('--sk-accent', th.accent)
-            localStorage.setItem('sm_login_theme', JSON.stringify(th))
+              localStorage.setItem('sm_login_theme', JSON.stringify(th))
           } catch (_) {}
         }
         if (s.pricing?.plans?.length) setPricing(s.pricing)
@@ -251,6 +261,13 @@ Basic includes core records and finance. Premium unlocks Messages, Attendance, T
       if (!error) {
         try {
           localStorage.setItem('sm_last_email', email)
+          if (rememberPass) {
+            localStorage.setItem('sm_remember_pass', '1')
+            localStorage.setItem('sm_saved_pass', password)
+          } else {
+            localStorage.removeItem('sm_remember_pass')
+            localStorage.removeItem('sm_saved_pass')
+          }
           if (schoolCode) localStorage.setItem('sm_last_school_code', schoolCode)
         } catch (_) {}
       }
@@ -432,19 +449,8 @@ Basic includes core records and finance. Premium unlocks Messages, Attendance, T
               key="stock-logo"
             />
           )}
-          <p className="text-white font-black text-xl mt-3 tracking-tight">{theme.brand_name || BRAND_NAME}</p>
-          <p className="text-cyan-100/85 mt-1 text-[11px] font-semibold tracking-[0.14em] uppercase">
-            {(theme.product_line || PRODUCT_LINE)}
-            {(theme.product_line || PRODUCT_LINE) && (theme.country_line || COUNTRY_LINE) ? ' · ' : ''}
-            {theme.country_line || COUNTRY_LINE}
-          </p>
-          {(theme.company_line || COMPANY_NAME) && (
-            <p className="text-cyan-100/55 text-[11px] mt-0.5">by {theme.company_line || COMPANY_NAME}</p>
-          )}
-          {(theme.login_subtext || '').trim() !== '' && (
-            <p className="text-slate-300/70 text-[11px] mt-2 max-w-sm mx-auto leading-relaxed">
-              {theme.login_subtext}
-            </p>
+          {theme.brand_name && (
+            <p className="text-white font-black text-xl mt-3 tracking-tight">{theme.brand_name}</p>
           )}
         </div>
 
@@ -517,19 +523,31 @@ Basic includes core records and finance. Premium unlocks Messages, Attendance, T
                   </select>
                   <input
                     className={`${input} uppercase`}
-                    placeholder="Referral code (required) e.g. SM-7K3M9Q"
+                    placeholder="Invite / referral code (required)"
                     value={referralCode}
-                    onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                    onChange={(e) => {
+                      const v = e.target.value.toUpperCase().trim()
+                      setReferralCode(v)
+                      // Auto-detect partner codes (PTR- / PARTNER / long agent codes)
+                      if (/^(PTR|PARTNER|AG|BDK)/i.test(v)) setPartnerCode(v)
+                      else setPartnerCode('')
+                    }}
                     required
                   />
-                  <p className="text-xs text-slate-500">Valid code required. 1‑month free trial starts after registration.</p>
-                  <input
-                    className={`${input} uppercase`}
-                    placeholder="Partner code (optional) e.g. PTR-7K3M9Q"
-                    value={partnerCode}
-                    onChange={(e) => setPartnerCode(e.target.value.toUpperCase())}
-                  />
-                  <p className="text-xs text-slate-500">Were you referred by a ShuleMoja partner/agent? Enter their code here — optional.</p>
+                  <p className="text-xs text-slate-500">
+                    One code only. School invite codes (e.g. from another Principal) and partner/agent codes are different —
+                    paste whichever you were given. Partner-style codes (PTR-…) are detected automatically.
+                    Valid code required. 1‑month free trial starts after registration.
+                  </p>
+                  {partnerCode ? (
+                    <p className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1">
+                      Detected partner/agent code — will be recorded for the partner programme.
+                    </p>
+                  ) : referralCode ? (
+                    <p className="text-xs font-semibold text-sky-700 bg-sky-50 border border-sky-200 rounded-lg px-2 py-1">
+                      Treating as school invite / referral code.
+                    </p>
+                  ) : null}
                   </>
                 ) : (
                   <>
@@ -663,9 +681,20 @@ Basic includes core records and finance. Premium unlocks Messages, Attendance, T
               {mode === 'login' ? "Don't have an account? Register" : 'Already have an account? Login'}
             </button>
             {mode === 'login' && (
-              <button type="button" onClick={forgot} className="block w-full text-slate-500 hover:text-blue-600 font-medium">
-                Forgot password?
-              </button>
+              <>
+                <label className="flex items-center justify-center gap-2 text-xs text-slate-600 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={rememberPass}
+                    onChange={(e) => setRememberPass(e.target.checked)}
+                    className="rounded border-slate-300"
+                  />
+                  Save password on this device
+                </label>
+                <button type="button" onClick={forgot} className="block w-full text-slate-500 hover:text-blue-600 font-medium">
+                  Forgot password?
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -834,9 +863,11 @@ Basic includes core records and finance. Premium unlocks Messages, Attendance, T
           <button type="button" className="underline" onClick={() => setView('terms')}>Terms</button>
           <button type="button" className="underline" onClick={() => setView('contact')}>Contact</button>
         </div>
-        <p className="mt-4 text-center text-xs text-white/70 font-medium">
-          {theme.footer_text || COPYRIGHT}
-        </p>
+        {theme.footer_text && (
+          <p className="mt-4 text-center text-xs text-white/70 font-medium">
+            {theme.footer_text}
+          </p>
+        )}
       </div>
     </div>
   )

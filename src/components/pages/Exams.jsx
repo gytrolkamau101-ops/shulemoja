@@ -4,6 +4,20 @@ import { isOnline, enqueue } from '../../lib/offline'
 import { toast } from '../ui'
 import { Card, Scroll, Alert, NeedTerm, PageTitle, input, btn, btnGreen, th, td } from '../ui'
 
+const EXAM_TYPES = [
+  { id: 'cat', label: 'CAT / Continuous' },
+  { id: 'midterm', label: 'Mid-term' },
+  { id: 'endterm', label: 'End-term' },
+  { id: 'project', label: 'Project' },
+  { id: 'sba', label: 'SBA / Practical' },
+]
+const CBC_LEVELS = [
+  { id: 'EE', label: 'EE — Exceeding Expectation' },
+  { id: 'ME', label: 'ME — Meeting Expectation' },
+  { id: 'AE', label: 'AE — Approaching Expectation' },
+  { id: 'BE', label: 'BE — Below Expectation' },
+]
+
 function gradeFor(pct, bands) {
   if (!bands || bands.length === 0) {
     if (pct >= 80) return 'A'
@@ -33,6 +47,8 @@ export default function Exams({ school, user, term }) {
   const [showExamForm, setShowExamForm] = useState(false)
   const [newExamName, setNewExamName] = useState('')
   const [newExamDate, setNewExamDate] = useState('')
+  const [newExamType, setNewExamType] = useState('cat')
+  const [levels, setLevels] = useState({}) // student_id -> CBC level for project/SBA
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -81,14 +97,20 @@ export default function Exams({ school, user, term }) {
 
       const { data: existing } = await supabase
         .from('exam_results')
-        .select('student_id, marks_obtained')
+        .select('student_id, marks_obtained, cbc_level, grade')
         .eq('exam_id', selectedExam)
         .eq('subject_id', selectedSubject)
       const m = {}
+      const lv = {}
       ;(existing || []).forEach((r) => {
         m[r.student_id] = r.marks_obtained ?? ''
+        if (r.cbc_level) lv[r.student_id] = r.cbc_level
+        else if (r.grade && ['EE','ME','AE','BE'].includes(String(r.grade).toUpperCase().slice(0,2))) {
+          lv[r.student_id] = String(r.grade).toUpperCase().slice(0,2)
+        }
       })
       setMarks(m)
+      setLevels(lv)
     })()
   }, [selectedExam, selectedGrade, selectedSubject, term])
 
@@ -102,11 +124,12 @@ export default function Exams({ school, user, term }) {
     if (!canManageExams) return setError('You do not have permission to create exams.')
     const { data, error } = await supabase
       .from('exams')
-      .insert([{ school_id: school?.id, term_id: term.id, exam_name: name, exam_date: newExamDate || null }])
+      .insert([{ school_id: school?.id, term_id: term.id, exam_name: name, exam_date: newExamDate || null, exam_type: newExamType || 'cat' }])
       .select('id')
       .maybeSingle()
     if (error) return setError(error.message)
     setNewExamName('')
+      setNewExamType('cat')
     setNewExamDate('')
     setShowExamForm(false)
     setInfo(`Exam "${name}" created.`)
@@ -151,10 +174,16 @@ export default function Exams({ school, user, term }) {
     setSaving(true)
     setError('')
     setInfo('')
+    const examMeta = exams.find((e) => e.id === selectedExam)
+    const isRubric = ['project', 'sba'].includes((examMeta?.exam_type || '').toLowerCase())
     const rows = students
-      .filter((s) => marks[s.id] !== undefined && marks[s.id] !== '')
+      .filter((s) => (marks[s.id] !== undefined && marks[s.id] !== '') || (isRubric && levels[s.id]))
       .map((s) => {
-        const obtained = Math.max(0, Math.min(100, Number(marks[s.id])))
+        const obtained = marks[s.id] === '' || marks[s.id] === undefined
+          ? null
+          : Math.max(0, Math.min(100, Number(marks[s.id])))
+        const cbc = levels[s.id] || null
+        const letter = cbc || (obtained != null ? gradeFor(obtained, bands) : null)
         return {
           school_id: school?.id,
           exam_id: selectedExam,
@@ -162,7 +191,8 @@ export default function Exams({ school, user, term }) {
           subject_id: selectedSubject,
           marks_obtained: obtained,
           total_marks: 100,
-          grade: gradeFor(obtained, bands),
+          grade: letter,
+          cbc_level: cbc,
           entered_by: user?.id,
         }
       })
@@ -237,7 +267,7 @@ export default function Exams({ school, user, term }) {
       <PageTitle
         right={
           canManageExams && (
-            <button onClick={() => setShowExamForm((v) => !v)} className={btnGreen}>
+            <button onClick={() => setShowExamForm((v) => !v)} className="px-4 py-2.5 rounded-xl text-sm font-black text-white bg-gradient-to-b from-sky-400 to-blue-700 shadow-[0_4px_0_#1e3a8a,0_0_20px_rgba(56,189,248,0.55)] border border-sky-300 active:shadow-[0_1px_0_#1e3a8a] active:translate-y-0.5 hover:from-amber-300 hover:to-amber-500 hover:shadow-[0_4px_0_#b45309,0_0_22px_rgba(251,191,36,0.55)] hover:border-amber-200 transition">
               {showExamForm ? 'Cancel' : '+ Create exam'}
             </button>
           )
@@ -250,7 +280,7 @@ export default function Exams({ school, user, term }) {
         <Alert kind="ok">Only Principal, Deputy, Senior Teacher, Teacher or Secretary can create exams.</Alert>
       )}
       {canManageExams && !showExamForm && (
-        <button type="button" onClick={() => setShowExamForm(true)} className={`${btnGreen} w-full sm:w-auto`}>
+        <button type="button" onClick={() => setShowExamForm(true)} className="w-full px-4 py-3 rounded-xl text-sm font-black text-white bg-gradient-to-b from-sky-400 to-blue-700 shadow-[0_4px_0_#1e3a8a,0_0_20px_rgba(56,189,248,0.55)] border border-sky-300 sm:w-auto">
           + Create exam
         </button>
       )}
@@ -270,6 +300,11 @@ export default function Exams({ school, user, term }) {
               value={newExamDate}
               onChange={(e) => setNewExamDate(e.target.value)}
             />
+            <select className={input} value={newExamType} onChange={(e) => setNewExamType(e.target.value)}>
+              {EXAM_TYPES.map((x) => (
+                <option key={x.id} value={x.id}>{x.label}</option>
+              ))}
+            </select>
             <div className="md:col-span-2">
               <Alert>{error}</Alert>
             </div>
@@ -291,14 +326,20 @@ export default function Exams({ school, user, term }) {
         )}
         <Card title="Enter / view marks">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
-            <select className={input} value={selectedExam} onChange={(e) => setSelectedExam(e.target.value)}>
+            <div className="flex flex-wrap gap-2 items-center"><select className={input} value={selectedExam} onChange={(e) => setSelectedExam(e.target.value)}>
               <option value="">Select exam</option>
               {exams.map((ex) => (
                 <option key={ex.id} value={ex.id}>
-                  {ex.exam_name}
+                  {ex.exam_name}{ex.exam_type ? ` · ${ex.exam_type}` : ''}
                 </option>
               ))}
             </select>
+              {selectedExam && canManageExams && (
+                <button type="button" onClick={deleteExam} className="px-3 py-2 rounded-xl border border-red-300 text-red-700 text-xs font-black bg-white shrink-0">
+                  Delete selected exam
+                </button>
+              )}
+            </div>
             <select className={input} value={selectedGrade} onChange={(e) => setSelectedGrade(e.target.value)}>
               <option value="">Select grade/class</option>
               {grades.map((g) => (
@@ -337,12 +378,15 @@ export default function Exams({ school, user, term }) {
                           <th className={th}>Adm No</th>
                           <th className={th}>Name</th>
                           <th className={th}>Marks (/100)</th>
+                          <th className={th}>CBC level</th>
                           <th className={th}>Grade</th>
                         </tr>
                       </thead>
                       <tbody>
                         {students.map((s) => {
                           const v = marks[s.id] ?? ''
+                          const examMeta = exams.find((e) => e.id === selectedExam)
+                          const rubric = ['project', 'sba'].includes((examMeta?.exam_type || '').toLowerCase())
                           return (
                             <tr key={s.id} className="border-b">
                               <td className={td}>{s.admission_no}</td>
@@ -357,9 +401,24 @@ export default function Exams({ school, user, term }) {
                                   className="w-20 p-1.5 border rounded"
                                   value={v}
                                   onChange={(e) => setMarks({ ...marks, [s.id]: e.target.value })}
+                                  placeholder={rubric ? 'opt' : ''}
                                 />
                               </td>
-                              <td className={td}>{v !== '' ? gradeFor(Number(v), bands) : '-'}</td>
+                              <td className={td}>
+                                <select
+                                  className="p-1.5 border rounded text-xs font-bold"
+                                  value={levels[s.id] || ''}
+                                  onChange={(e) => setLevels({ ...levels, [s.id]: e.target.value })}
+                                >
+                                  <option value="">—</option>
+                                  {CBC_LEVELS.map((c) => (
+                                    <option key={c.id} value={c.id}>{c.id}</option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td className={td}>
+                                {levels[s.id] || (v !== '' ? gradeFor(Number(v), bands) : '—')}
+                              </td>
                             </tr>
                           )
                         })}

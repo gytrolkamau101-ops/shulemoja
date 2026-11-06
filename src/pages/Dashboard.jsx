@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, lazy, Suspense, Component } from 'react'
+import { useState, useEffect, useCallback, useRef, lazy, Suspense, Component } from 'react'
 import ErrorBoundary from '../components/ErrorBoundary'
 
 function safeLazy(factory) {
@@ -78,6 +78,21 @@ export default function Dashboard({ session }) {
   const [term, setTerm] = useState(null)
   const [page, setPage] = useState('dashboard')
   const deskOnlyRoles = ['Kitchen', 'Watchman', 'Driver', 'Staff']
+
+  // Soft desk colour theme (Setup → identity)
+  useEffect(() => {
+    let theme = school?.shell_theme || 'sky'
+    if (school?.id) {
+      try {
+        const local = localStorage.getItem(`sm_shell_${school.id}`)
+        if (local) theme = local
+        if (school?.shell_theme) theme = school.shell_theme
+      } catch (_) {}
+    }
+    document.documentElement.setAttribute('data-shell', theme || 'sky')
+    return () => document.documentElement.removeAttribute('data-shell')
+  }, [school?.id, school?.shell_theme])
+
   const [menuOpen, setMenuOpen] = useState(false)
   const [theme, setThemeState] = useState(() => getTheme())
   const [announcement, setAnnouncement] = useState('')
@@ -210,6 +225,31 @@ export default function Dashboard({ session }) {
       setPage('boarding')
     }
   }, [user?.role, page])
+
+  
+  // Auto logout after 30 min idle; password may still be saved on login screen
+  useEffect(() => {
+    const MINS = 30
+    let timer = null
+    const bump = () => {
+      try {
+        localStorage.setItem('sm_last_active', String(Date.now()))
+      } catch (_) {}
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(async () => {
+        try {
+          await supabase.auth.signOut()
+        } catch (_) {}
+      }, MINS * 60 * 1000)
+    }
+    const evs = ['click', 'keydown', 'touchstart', 'scroll']
+    evs.forEach((e) => window.addEventListener(e, bump, { passive: true }))
+    bump()
+    return () => {
+      if (timer) clearTimeout(timer)
+      evs.forEach((e) => window.removeEventListener(e, bump))
+    }
+  }, [])
 
   if (loading) {
     return (

@@ -62,8 +62,18 @@ export function Card({ title, children, className = '', action }) {
   )
 }
 
-export function Scroll({ children }) {
-  return <div className="overflow-x-auto sk-scroll rounded-xl border border-slate-200 bg-white">{children}</div>
+export function Scroll({ children, dark = false }) {
+  return (
+    <div
+      className={
+        dark
+          ? 'overflow-x-auto sk-scroll rounded-xl border border-slate-600 bg-slate-900'
+          : 'overflow-x-auto sk-scroll rounded-xl border border-slate-200 bg-white'
+      }
+    >
+      {children}
+    </div>
+  )
 }
 
 const alertStyles = {

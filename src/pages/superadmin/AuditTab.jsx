@@ -6,7 +6,7 @@ export default function AuditTabSa({ events }) {
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-900 overflow-hidden">
       <div className="p-4 font-bold border-b border-slate-800 text-white">Audit (latest 100)</div>
-      <Scroll>
+      <Scroll dark>
         <table className="w-full sa-table">
           <thead className="bg-slate-950">
             <tr>

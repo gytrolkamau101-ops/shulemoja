@@ -49,7 +49,12 @@ export default function ClassSubjectsTab({ school, term, user }) {
       .eq('school_id', school?.id).eq('grade_id', gradeId).eq('term_id', term.id)
     const ids = Object.keys(picked).filter((id) => picked[id])
     if (ids.length) {
-      if (!user?.id) {
+      let uid = user?.id
+      if (!uid) {
+        const { data: auth } = await supabase.auth.getUser()
+        uid = auth?.user?.id
+      }
+      if (!uid) {
         setSaving(false)
         return setError('Your session has no user id. Sign out and sign in again, then save.')
       }
@@ -58,7 +63,7 @@ export default function ClassSubjectsTab({ school, term, user }) {
         grade_id: gradeId,
         subject_id,
         term_id: term.id,
-        teacher_id: user?.id,
+        teacher_id: uid,
       }))
       const { error } = await supabase.from('subject_allocations').insert(rows)
       if (error) {

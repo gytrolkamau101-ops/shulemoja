@@ -1,10 +1,12 @@
+import { canExportReports } from '../../lib/plans'
 import { canEditFinance } from '../../lib/roles'
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase } from '../../supabaseClient'
 import { isOnline, enqueue } from '../../lib/offline'
 import { logAudit } from '../../lib/audit'
-import { Card, Scroll, Alert, NeedTerm, PageTitle, input, btnGreen, th, td, fmt, toast } from '../ui'
+import { Card, Scroll, Alert, NeedTerm, PageTitle, input, btn, btnGreen, th, td, fmt, toast } from '../ui'
 import { computeAllBalances, sumOutstanding, sumCollected } from '../../lib/feeBalances'
+import { openPrintDocument } from '../../lib/docHeader'
 
 export default function StudentFinance({ school, term, user }) {
   const canEdit = canEditFinance(user?.role)
@@ -32,32 +34,20 @@ export default function StudentFinance({ school, term, user }) {
 
   const printStatement = (student, paidAmt, bal) => {
     try {
-      const w = window.open('about:blank', '_blank')
-      if (!w) {
-        toast('Allow pop-ups to print the statement', 'error')
-        return
-      }
-      const logo = school?.logo_url
-        ? `<img src="${school.logo_url}" style="max-height:56px;margin-bottom:8px"/>`
-        : ''
       const name = `${student?.first_name || ''} ${student?.last_name || ''}`.trim()
-      w.document.write(`<!doctype html><html><head><title>Fee statement</title>
-        <style>body{font-family:system-ui,sans-serif;padding:24px;color:#0f172a}
-        h1{font-size:18px;margin:0}table{width:100%;border-collapse:collapse;margin-top:16px}
-        th,td{border:1px solid #e2e8f0;padding:8px;text-align:left;font-size:13px}th{background:#f1f5f9}
-        .foot{margin-top:24px;font-size:11px;color:#64748b}</style></head><body>
-        ${logo}
-        <h1>${school?.school_name || 'School'}</h1>
-        <h2>Fee statement</h2>
-        <p><strong>${name}</strong> · Adm ${student?.admission_no || '—'}</p>
-        <p>Term ${term?.term || ''}, ${term?.year || ''}</p>
+      const ok = openPrintDocument({
+        school,
+        title: 'Fee statement',
+        bodyHtml: `
+        <h2 style="text-align:center">Fee statement</h2>
+        <p style="text-align:center"><strong>${name}</strong> · Adm ${student?.admission_no || '—'}</p>
+        <p style="text-align:center">Term ${term?.term || ''}, ${term?.year || ''}</p>
         <table><tr><th>Description</th><th>Amount (KES)</th></tr>
         <tr><td>Recorded payments (this term)</td><td>${Number(paidAmt || 0).toLocaleString()}</td></tr>
         <tr><td>Outstanding balance (approx.)</td><td>${bal == null ? '—' : Number(bal).toLocaleString()}</td></tr>
-        </table>
-        <p class="foot">Generated via ShuleMoja · BigDataKE Technologies</p>
-        <script>window.onload=function(){window.print()}<\/script></body></html>`)
-      w.document.close()
+        </table>`,
+      })
+      if (!ok) toast('Allow pop-ups to print the statement', 'error')
     } catch (e) {
       toast(e?.message || 'Could not print', 'error')
     }
@@ -75,7 +65,7 @@ export default function StudentFinance({ school, term, user }) {
         await Promise.all([
           supabase
             .from('students')
-            .select('id, admission_no, first_name, last_name')
+            .select('id, admission_no, first_name, last_name, parent_phone')
             .eq('school_id', school?.id)
             .eq('status', 'Active')
             .order('first_name'),
@@ -153,6 +143,63 @@ export default function StudentFinance({ school, term, user }) {
     () => computeAllBalances(students, enrollments, feeStructures, payments, openings),
     [students, enrollments, feeStructures, payments, openings]
   )
+
+  const printClassFeeList = () => {
+    const gmap = Object.fromEntries((grades || []).map((g) => [g.id, g.grade_name]))
+    const list = (filteredBalances || balances || []).slice()
+    const gradeLabel =
+      gradeFilter && gradeFilter !== 'all' ? gmap[gradeFilter] || 'Class' : 'All grades'
+    const rows = list
+      .map((b, i) => {
+        const name = `${b.first_name || ''} ${b.last_name || ''}`.trim()
+        const g = gmap[b.gradeId] || '—'
+        const bal = b.balance == null ? '—' : Number(b.balance).toLocaleString()
+        return `<tr><td>${i + 1}</td><td>${b.admission_no || ''}</td><td>${name}</td><td>${g}</td><td>${Number(b.termFee || 0).toLocaleString()}</td><td>${Number(b.arrears || 0).toLocaleString()}</td><td>${Number(b.paid || 0).toLocaleString()}</td><td>${bal}</td></tr>`
+      })
+      .join('')
+    const ok = openPrintDocument({
+      school,
+      title: `Fee list — ${gradeLabel}`,
+      bodyHtml: `<h2 style="text-align:center">Class fee list — ${gradeLabel}</h2>
+        <p style="text-align:center">Term ${term?.term || ''} · ${term?.year || ''} · ${list.length} learner(s)</p>
+        <table><thead><tr><th>#</th><th>Adm</th><th>Name</th><th>Grade</th><th>Term fee</th><th>Arrears</th><th>Paid</th><th>Balance</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="8">No rows</td></tr>'}</tbody></table>
+        <p class="no-print" style="margin-top:12px"><button onclick="window.print()">Print / Save PDF</button></p>`,
+    })
+    if (!ok) toast('Allow pop-ups to print the fee list', 'error')
+  }
+
+  const exportBalancesCsv = () => {
+    const gmap = Object.fromEntries((grades || []).map((g) => [g.id, g.grade_name]))
+    const rows = (balances || []).map((b) => ({
+      admission_no: b.admission_no || '',
+      name: `${b.first_name || ''} ${b.last_name || ''}`.trim(),
+      grade: gmap[b.gradeId] || '',
+      term_fee: b.termFee ?? '',
+      arrears: b.arrears ?? '',
+      paid: b.paid ?? '',
+      balance: b.balance ?? '',
+    }))
+    const header = ['admission_no', 'name', 'grade', 'term_fee', 'arrears', 'paid', 'balance']
+    const lines = [header.join(',')]
+    rows.forEach((r) => lines.push(header.map((h) => `"${String(r[h] ?? '').replace(/"/g, '""')}"`).join(',')))
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `fee_balances_${school?.school_code || 'school'}.csv`
+    a.click()
+    URL.revokeObjectURL(a.href)
+  }
+
+  const shareReceiptWa = (student, amount, method, receiptNo) => {
+    const name = `${student?.first_name || ''} ${student?.last_name || ''}`.trim()
+    const text = encodeURIComponent(
+      `Fee receipt — ${school?.school_name || 'School'}\nLearner: ${name}\nAdm: ${student?.admission_no || '—'}\nAmount: KES ${Number(amount || 0).toLocaleString()}\nMethod: ${method || '—'}\nReceipt: ${receiptNo || '—'}\nThank you.`
+    )
+    const phone = String(student?.parent_phone || '').replace(/\D/g, '')
+    const local = phone.startsWith('0') ? '254' + phone.slice(1) : phone
+    window.open(local ? `https://wa.me/${local}?text=${text}` : `https://wa.me/?text=${text}`, '_blank')
+  }
   const filteredBalances = useMemo(() => {
     if (gradeFilter === 'all') return balances
     return balances.filter((b) => b.gradeId === gradeFilter)
@@ -293,14 +340,23 @@ export default function StudentFinance({ school, term, user }) {
   if (!term) {
     return (
       <div className="space-y-4">
-        <PageTitle>Student fees</PageTitle>
-        <NeedTerm />
+                <NeedTerm />
       </div>
     )
   }
 
   return (
     <div className="space-y-6">
+      <div className="flex flex-wrap gap-2 mb-2">
+        {canExportReports(school) ? (
+          <>
+            <button type="button" className="px-3 py-1.5 rounded-lg text-xs font-black border shrink-0 bg-sky-600 text-white border-sky-500 hover:bg-sky-500 active:bg-amber-400 active:text-amber-950 shadow-[0_0_12px_rgba(56,189,248,0.35)]" onClick={exportBalancesCsv}>Export balances CSV</button>
+            <button type="button" className="px-3 py-1.5 rounded-lg text-xs font-black border shrink-0 bg-sky-600 text-white border-sky-500 hover:bg-sky-500 active:bg-amber-400 active:text-amber-950 shadow-[0_0_12px_rgba(56,189,248,0.35)]" onClick={printClassFeeList}>Class fee PDF</button>
+          </>
+        ) : (
+          <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5 shrink-0">CSV / PDF download · Premium & Pro only (Basic is view-only)</span>
+        )}
+      </div>
       <PageTitle
         title="Student fees"
         right={
@@ -451,13 +507,22 @@ export default function StudentFinance({ school, term, user }) {
                           {b.balance == null ? '—' : `KES ${fmt(b.balance)}`}
                         </td>
                         <td className={td}>
-                          <button
-                            type="button"
-                            className="text-xs font-bold text-blue-700 underline"
-                            onClick={() => printStatement(b, b.paid, b.balance)}
-                          >
-                            PDF
-                          </button>
+                          <div className="flex flex-col gap-1">
+                            <button
+                              type="button"
+                              className="text-xs font-bold text-blue-700 underline text-left"
+                              onClick={() => printStatement(b, b.paid, b.balance)}
+                            >
+                              PDF
+                            </button>
+                            <button
+                              type="button"
+                              className="text-xs font-bold text-emerald-700 underline text-left"
+                              onClick={() => shareReceiptWa(b, b.paid, 'Statement', b.admission_no)}
+                            >
+                              WhatsApp
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}

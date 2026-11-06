@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { supabase } from '../supabaseClient'
 import { Card, Scroll, Alert, th, td, fmt, btn, btnGreen, Spinner, input } from '../components/ui'
 import { planEntitlements } from '../lib/plans'
+import { openPrintDocument } from '../lib/docHeader'
 
 export default function ParentPortal({ session }) {
   const [parent, setParent] = useState(null)
@@ -115,24 +116,22 @@ export default function ParentPortal({ session }) {
 }
 
 
-function printFeeStatement({ student, schoolName, rows, termLabel }) {
+function printFeeStatement({ student, schoolName, logoUrl, rows, termLabel }) {
   const body = (rows || []).map((r) =>
     `<tr><td>${r.payment_date || ''}</td><td>${r.payment_method || ''}</td><td style="text-align:right">${Number(r.amount_paid||0).toLocaleString()}</td><td>${r.receipt_no||''}</td></tr>`
   ).join('')
   const total = (rows || []).reduce((s, r) => s + Number(r.amount_paid || 0), 0)
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Fee statement</title>
-  <style>body{font-family:system-ui;margin:24px;color:#0f172a}table{width:100%;border-collapse:collapse}td,th{border:1px solid #cbd5e1;padding:6px;font-size:12px}
-  h1{font-size:18px;text-align:center}</style></head><body>
-  <h1>${schoolName || 'School'}</h1>
-  <p style="text-align:center">Fee statement · ${termLabel || ''} · ${student.first_name} ${student.last_name} (${student.admission_no||''})</p>
-  <table><thead><tr><th>Date</th><th>Method</th><th>Amount</th><th>Receipt</th></tr></thead>
-  <tbody>${body}</tbody>
-  <tfoot><tr><td colspan="2"><strong>Total paid</strong></td><td style="text-align:right"><strong>KES ${total.toLocaleString()}</strong></td><td></td></tr></tfoot>
-  </table>
-  <p style="text-align:center;margin-top:24px;font-size:10px;color:#94a3b8">ShuleMoja</p>
-  <script>window.onload=()=>setTimeout(()=>window.print(),300)</script></body></html>`
-  const w = window.open('', '_blank')
-  if (w) { w.document.write(html); w.document.close() }
+  const ok = openPrintDocument({
+    school: { school_name: schoolName, logo_url: logoUrl },
+    title: 'Fee statement',
+    bodyHtml: `
+    <p style="text-align:center">Fee statement · ${termLabel || ''} · ${student.first_name} ${student.last_name} (${student.admission_no||''})</p>
+    <table><thead><tr><th>Date</th><th>Method</th><th>Amount</th><th>Receipt</th></tr></thead>
+    <tbody>${body}</tbody>
+    <tfoot><tr><td colspan="2"><strong>Total paid</strong></td><td style="text-align:right"><strong>KES ${total.toLocaleString()}</strong></td><td></td></tr></tfoot>
+    </table>`,
+  })
+  if (!ok) alert('Allow pop-ups to print')
 }
 
 
@@ -143,30 +142,16 @@ function printExamSummary({ student, schoolName, results, termLabel, logoUrl }) 
         `<tr><td>${r.exams?.exam_name || ''}</td><td>${r.subjects?.subject_name || ''}</td><td style="text-align:center">${r.marks_obtained ?? '—'}</td><td style="text-align:center">${r.grade || '—'}</td></tr>`
     )
     .join('')
-  const logo = logoUrl ? `<img src="${logoUrl}" style="max-height:56px;margin:0 auto 8px;display:block"/>` : ''
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Results</title>
-  <style>
-    body{font-family:system-ui,sans-serif;margin:24px;color:#0f172a}
-    h1{font-size:18px;text-align:center;margin:4px 0}
-    .sub{text-align:center;color:#64748b;font-size:12px;margin-bottom:12px}
-    table{width:100%;border-collapse:collapse}
-    th,td{border:1px solid #cbd5e1;padding:8px;font-size:12px}
-    th{background:#f1f5f9}
-    .foot{margin-top:20px;font-size:10px;color:#94a3b8;text-align:center}
-  </style></head><body>
-  ${logo}
-  <h1>${schoolName || 'School'}</h1>
-  <div class="sub">Exam results · ${termLabel || ''}</div>
-  <p style="text-align:center;font-weight:700">${student?.first_name || ''} ${student?.last_name || ''} · Adm ${student?.admission_no || ''}</p>
-  <table><thead><tr><th>Exam</th><th>Subject</th><th>Marks</th><th>Grade</th></tr></thead>
-  <tbody>${body || '<tr><td colspan="4">No results</td></tr>'}</tbody></table>
-  <p class="foot">ShuleMoja · BigDataKE Technologies</p>
-  <script>window.onload=function(){setTimeout(function(){window.print()},300)}<\/script>
-  </body></html>`
-  const w = window.open('', '_blank')
-  if (!w) return alert('Allow pop-ups to print')
-  w.document.write(html)
-  w.document.close()
+  const ok = openPrintDocument({
+    school: { school_name: schoolName, logo_url: logoUrl },
+    title: 'Results',
+    bodyHtml: `
+    <div style="text-align:center;color:#64748b;font-size:12px;margin-bottom:12px">Exam results · ${termLabel || ''}</div>
+    <p style="text-align:center;font-weight:700">${student?.first_name || ''} ${student?.last_name || ''} · Adm ${student?.admission_no || ''}</p>
+    <table><thead><tr><th>Exam</th><th>Subject</th><th>Marks</th><th>Grade</th></tr></thead>
+    <tbody>${body || '<tr><td colspan="4">No results</td></tr>'}</tbody></table>`,
+  })
+  if (!ok) alert('Allow pop-ups to print')
 }
 
 function ChildDetail({ student, schoolId, session }) {
@@ -484,7 +469,7 @@ function ChildDetail({ student, schoolId, session }) {
                     schoolName,
                     rows: payments,
                     termLabel: term ? `Term ${term.term} ${term.year}` : '',
-                    logoUrl: null,
+                    logoUrl: schoolPay?.logo_url || null,
                     paid: payments.reduce((s, p) => s + Number(p.amount_paid || 0), 0),
                     balance: null,
                     termFee: null,
@@ -524,7 +509,7 @@ function ChildDetail({ student, schoolId, session }) {
 
           {results.length > 0 && (
               <button type="button" className="px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-black shadow-md mb-2"
-                onClick={() => printExamSummary({ student, schoolName, results, termLabel: term ? `Term ${term.term} ${term.year}` : '' })}>
+                onClick={() => printExamSummary({ student, schoolName, logoUrl: schoolPay?.logo_url || null, results, termLabel: term ? `Term ${term.term} ${term.year}` : '' })}>
                 Download / print results
               </button>
             )}

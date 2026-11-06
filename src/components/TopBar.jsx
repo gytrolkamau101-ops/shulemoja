@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { t } from '../lib/i18n'
 
 const PAGE_LABELS = {
@@ -9,18 +9,20 @@ const PAGE_LABELS = {
   setup: 'setup',
   support: 'support',
   referrals: 'referrals',
+  'reports-hub': 'exams',
+  'school-finance': 'finance',
 }
 
 function useClock() {
   const [now, setNow] = useState(() => new Date())
   useEffect(() => {
-    // Only minutes are shown, so a 1s tick was 60x more re-renders than needed
     const id = setInterval(() => setNow(new Date()), 30000)
     return () => clearInterval(id)
   }, [])
   return now
 }
 
+/** Top bar — menu, school, page title, clock, logout. Profile & language live under Setup. */
 export default function TopBar({
   school,
   user,
@@ -29,24 +31,12 @@ export default function TopBar({
   onLogout,
   onMenu,
   lang = 'en',
-  onLang,
   announcement,
   onHideAnnouncement,
 }) {
   const titleKey = PAGE_LABELS[page] || page
   const title = t(lang, titleKey)
-  const [open, setOpen] = useState(false)
-  const ref = useRef(null)
   const now = useClock()
-
-  useEffect(() => {
-    const close = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false)
-    }
-    document.addEventListener('click', close)
-    return () => document.removeEventListener('click', close)
-  }, [])
-
   const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
   const dateStr = now.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
 
@@ -80,7 +70,13 @@ export default function TopBar({
           </button>
 
           {school?.logo_url ? (
-            <img src={school.logo_url} alt="" loading="lazy" decoding="async" className="hidden sm:block h-10 w-10 rounded-lg object-cover border border-slate-200 shrink-0" />
+            <img
+              src={school.logo_url}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              className="hidden sm:block h-10 w-10 rounded-lg object-cover border border-slate-200 shrink-0"
+            />
           ) : (
             <div className="hidden sm:flex h-10 w-10 rounded-lg bg-blue-700 text-white items-center justify-center text-xs font-black shrink-0">
               SM
@@ -106,41 +102,6 @@ export default function TopBar({
           <div className="hidden sm:flex flex-col items-end shrink-0 px-2">
             <span className="text-sm font-black text-slate-900 tabular-nums">{timeStr}</span>
             <span className="text-[10px] font-semibold text-slate-600">{dateStr}</span>
-          </div>
-
-          <div className="relative shrink-0" ref={ref}>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                setOpen((v) => !v)
-              }}
-              className="h-11 w-11 rounded-xl border-2 border-slate-300 bg-slate-50 text-slate-800 text-sm font-bold hover:bg-slate-100"
-              aria-label="Language"
-            >
-              ⚙
-            </button>
-            {open && (
-              <div className="absolute right-0 mt-1.5 w-40 rounded-xl border-2 border-slate-200 bg-white shadow-xl p-2 z-50">
-                <p className="text-[10px] font-bold uppercase text-slate-500 px-1 mb-1">Language</p>
-                <div className="flex gap-1">
-                  <button
-                    type="button"
-                    onClick={() => onLang?.('en')}
-                    className={`flex-1 py-2 rounded-lg text-[11px] font-black ${lang === 'en' ? 'bg-blue-700 text-white' : 'bg-slate-100 text-slate-700'}`}
-                  >
-                    EN
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onLang?.('sw')}
-                    className={`flex-1 py-2 rounded-lg text-[11px] font-black ${lang === 'sw' ? 'bg-blue-700 text-white' : 'bg-slate-100 text-slate-700'}`}
-                  >
-                    SW
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
 
           <button
